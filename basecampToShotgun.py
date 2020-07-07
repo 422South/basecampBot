@@ -199,6 +199,7 @@ def process_ami():
                         temp = oo['name'] + '---' + str(tt['title'])
                         htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
 
+
             return '<form action="/confirm">' \
                    '<select name="topic" size="number_of_options">' \
                    + htmlTmp + \
