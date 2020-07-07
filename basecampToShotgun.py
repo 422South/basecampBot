@@ -42,6 +42,16 @@ def get_auth_header():
     }
 
 
+@app.route("/confirm", methods=['GET', 'POST'])
+def confirm():
+    basecamptopic = request.args.get('topic')
+    assetID = request.args.get('assetid')
+
+    carryOn(0, basecamptopic, assetID)
+
+    return "<h1>That is Cofirmed!</h1>"
+
+
 def carryOn(latestPostID, baseCampTopic, assetId):
 
     asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id'])
@@ -71,8 +81,9 @@ def carryOn(latestPostID, baseCampTopic, assetId):
             'sg_latestpostid': '0',
             'note_links': [{'type': 'Asset', 'id': asset['id']}],
             # 'addressings_to': userList,
+            'suppress_email_notif': True,
         }
-        sg.create('Note', note_data)
+        # sg.create('Note', note_data)
 
     # Build replies onto the new note or add to it if it already exists
     baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic]], ['name'])
@@ -112,7 +123,7 @@ def carryOn(latestPostID, baseCampTopic, assetId):
                     'name': i[1],
                     'password_change_next_login': True,
                 }
-                sg.create('ClientUser', userData)
+                # sg.create('ClientUser', userData)
 
         replyDateCreation = 'This note was created on ' + i[4].replace('T', ' ').replace('.000Z', '') + '\n\n'
 
@@ -122,14 +133,14 @@ def carryOn(latestPostID, baseCampTopic, assetId):
                 'content': replyDateCreation + '' + theContents,
                 'user': humanUser
             }
-            sg.create('Reply', reply_data)
+            # sg.create('Reply', reply_data)
         else:
             reply_data = {
                 'entity': baseCampThread,
                 'content': replyDateCreation + '' + theContents,
                 'user': clientUser
             }
-            sg.create('Reply', reply_data)
+            # sg.create('Reply', reply_data)
 
         for j in i[3]:
             res = {key: j[key] for key in j.keys() and {'name'}}
@@ -141,7 +152,7 @@ def carryOn(latestPostID, baseCampTopic, assetId):
     postIDData = {
         'sg_latestpostid': str(latestPostID),
     }
-    sg.update('Note', baseCampThread['id'], postIDData)
+    # sg.update('Note', baseCampThread['id'], postIDData)
 
 
 @app.route("/", methods=['GET', 'POST'])
@@ -173,38 +184,7 @@ def process_ami():
             '''
 
             print "Loading UI"
-            window = tk.Tk()
-
-            #  Window width, height and calculating the window to appear in the center of the screen
-            width = 1600
-            height = 650
-            posRight = int(window.winfo_screenwidth() / 2 - width / 2)
-            posDown = int(window.winfo_screenheight() / 2 - height / 2)
-            window.geometry("+%d+%d" % (posRight, posDown))
-            window.title("Select BaseCamp Topic")  # Window title
-            window.resizable(0, 0)  # Make window non resizable by user
-            topFrame = Frame(window, width=115, height=10, pady=20, padx=20)
-            topFrame.pack(side=TOP)
-            listBox = Listbox(topFrame, height=20, width=75, fg='black', exportselection=False)
-
-            def onSelect(event):
-                confirmBtn.config(state=ACTIVE)
-
-            listBox.bind('<<ListboxSelect>>', onSelect)
-            listBox.grid(row=2, column=0)
-
-            scrollbarVertical = Scrollbar(topFrame, orient=VERTICAL)
-            scrollbarHorizontal = Scrollbar(topFrame, orient=HORIZONTAL)
-            scrollbarVertical.config(command=listBox.yview)
-            scrollbarHorizontal.config(command=listBox.xview)
-            scrollbarVertical.grid(row=2, column=1, sticky=N + S + W)
-            scrollbarHorizontal.grid(row=3, column=0, sticky=E + W + S)
-            listBox.config(yscrollcommand=scrollbarVertical.set, xscrollcommand=scrollbarHorizontal.set)
-
-            confirmBtn = Button(topFrame, width=30, height=2, text="Confirm", command=lambda: [carryOn(0, listBox.get(listBox.curselection(), last=None), asset_id), window.destroy()], state=DISABLED)
-            confirmBtn.grid(row=4, column=0, padx=1, pady=3)
-            cancelBtn = Button(topFrame, width=30, height=2, text='Cancel', command=lambda: doClose())
-            cancelBtn.grid(row=5, column=0, padx=1, pady=3)
+            htmlTmp = ""
 
             url = 'https://basecamp.com/2978927/api/v1/projects.json'
             headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
@@ -216,17 +196,16 @@ def process_ami():
                     t = requests.get(topic_url, headers=headers_422, auth=auth_422)
                     topics = t.json()
                     for tt in topics:
-                        listBox.insert(END, oo['name'] + '---' + str(tt['title']))
+                        temp = oo['name'] + '---' + str(tt['title'])
+                        htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
 
-            window.protocol("WM_DELETE_WINDOW", lambda: doClose())
-            window.attributes('-topmost', 'true')
-
-            def doClose():
-                window.destroy()
-
-            window.mainloop()
-
-            return "<h1>Hello World " + datetime.datetime.now().strftime('%H:%M:%S') + "</h1>"
+            return '<form action="/confirm">' \
+                   '<select name="topic" size="number_of_options">' \
+                   + htmlTmp + \
+                   '</select>' \
+                   '<input type="submit" value="Confirm">' \
+                   '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
+                   '</form>'
 
 
 def getBasecampFiles(latestPostID, baseCampTopic):
