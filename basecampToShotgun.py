@@ -18,11 +18,6 @@ app = Flask(__name__)
 write_directory = 'BasecampDownloads/'
 
 
-# @app.route("/hello", methods=['GET'])
-def hello():
-    return "<h1>Hello World " + datetime.datetime.now().strftime('%H:%M:%S') + "</h1>"
-
-
 def get_auth_header():
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -40,6 +35,19 @@ def get_auth_header():
         'Accept': 'application/json',
         'Authorization': 'Bearer ' + resp.json()['access_token']
     }
+
+
+@app.route("/updateall", methods=['GET', 'POST'])
+def updateAllThreads():
+    notes = sg.find('Note', [['sg_basecamptopic', 'is_not', '']], ['sg_basecamptopic', 'sg_latestpostid', 'note_links'])
+    for note in notes:
+        latestID = note['sg_latestpostid']
+        assetID = note['note_links'][0].get("id")
+        basecamptopic = note['sg_basecamptopic']
+
+        carryOn(latestID, basecamptopic, assetID)
+
+    return "<h1>Threads updated " + "</h1>"
 
 
 @app.route("/confirm", methods=['GET', 'POST'])
@@ -198,7 +206,6 @@ def process_ami():
                     for tt in topics:
                         temp = oo['name'] + '---' + str(tt['title'])
                         htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
-
 
             return '<form action="/confirm">' \
                    '<select name="topic" size="number_of_options">' \
