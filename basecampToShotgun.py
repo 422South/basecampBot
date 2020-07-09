@@ -4,6 +4,7 @@ from flask import Flask, request
 import requests
 from re import search, IGNORECASE
 import shotgun_api3 as sg3
+import pprint
 
 SCRIPT_KEY = os.environ.get('SG_KEY')
 SCRIPT_NAME = os.environ.get('SG_NAME')
@@ -32,11 +33,15 @@ def get_auth_header():
         'session_uuid': request.form.get('session_uuid')
     }
     resp = requests.post(SITE_URL + '/auth/access_token', headers=headers, params=params)
-
+    pprint.pprint(resp)
     return {
         'Accept': 'application/json',
         'Authorization': 'Bearer ' + resp.json()['access_token']
     }
+
+"""
+
+"""
 
 
 @app.route("/basecamp/updateall", methods=['GET', 'POST'])
@@ -47,7 +52,7 @@ def updateAllThreads():
         assetID = note['note_links'][0].get("id")
         basecamptopic = note['sg_basecamptopic']
 
-        carryOn(latestID, basecamptopic, assetID)
+        createNote(latestID, basecamptopic, assetID)
 
     return "<h1>Threads updated " + "</h1>"
 
@@ -57,12 +62,12 @@ def confirm():
     basecamptopic = request.args.get('topic')
     assetID = request.args.get('assetid')
 
-    carryOn(0, basecamptopic, int(assetID))
+    createNote(0, basecamptopic, int(assetID))
 
     return "<h1>Upload Successful!</h1>"
 
 
-def carryOn(latestPostID, baseCampTopic, assetId):
+def createNote(latestPostID, baseCampTopic, assetId):
 
     asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id'])
 
@@ -166,27 +171,27 @@ def process_ami():
                 if note_specific['sg_latestpostid'] > latestPostID:
                     latestPostID = note_specific['sg_latestpostid']
                     baseCampTopic = note_specific['sg_basecamptopic']
-                    carryOn(latestPostID, baseCampTopic, asset_id)
+                    createNote(latestPostID, baseCampTopic, asset_id)
 
         if not found:
             '''
                 Need to ask the user what the baseCampTopic is to continue
             '''
 
-            print "Loading UI"
+            # print "Loading UI"
             htmlTmp = ""
 
             url = 'https://basecamp.com/2978927/api/v1/projects.json'
             headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
             auth_422 = ('craig@422south.com', 'Millenium2')
             r = requests.get(url, headers=headers_422, auth=auth_422)
-            for oo in r.json():
-                if search('^drain', oo['name'], IGNORECASE):
-                    topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(oo['id']) + '/topics.json'
+            for basecampProject in r.json():
+                if search('^drain', basecampProject['name'], IGNORECASE):
+                    topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(basecampProject['id']) + '/topics.json'
                     t = requests.get(topic_url, headers=headers_422, auth=auth_422)
                     topics = t.json()
-                    for tt in topics:
-                        temp = oo['name'] + '---' + str(tt['title'])
+                    for topic in topics:
+                        temp = basecampProject['name'] + '---' + str(topic['title'])
                         htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
 
             return '<form action="/basecamp/confirm">' \
@@ -203,27 +208,27 @@ def getBasecampFiles(latestPostID, baseCampTopic):
     headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
     auth_422 = ('craig@422south.com', 'Millenium2')
     r = requests.get(url, headers=headers_422, auth=auth_422)
-    drainProject = ""
+    basecampName = ""
     usefulData = []
     # pprint.pprint(r.json(), indent= 5)
-    for oo in r.json():
-        if search('^drain', oo['name'], IGNORECASE):
-            # pprint.pprint(oo['name'])
-            topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(oo['id']) + '/topics.json'
+    for basecampProject in r.json():
+        if search('^drain', basecampProject['name'], IGNORECASE):
+            # pprint.pprint(basecampProject['name'])
+            topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(basecampProject['id']) + '/topics.json'
             # print(topic_url)
             t = requests.get(topic_url, headers=headers_422, auth=auth_422)
             topics = t.json()
             # pprint.pprint(topics)
-            for tt in topics:
-                # pprint.pprint(tt)
-                # print(tt['title'], tt['topicable']['url'])
-                topic_title = tt['title']
+            for topicName in topics:
+                # pprint.pprint(topicName)
+                # print(topicName['title'], topicName['topicable']['url'])
+                topic_title = topicName['title']
 
                 # Only pull down the topic that is relevant
                 tmp = topic_title.replace(' ', '_').replace('/', '_')
                 if tmp == baseCampTopic:
-                    drainProject = str(oo['name']).replace(' ', '_').replace('/', '_')
-                    message_url = tt['topicable']['url']
+                    basecampName = str(basecampProject['name']).replace(' ', '_').replace('/', '_')
+                    message_url = topicName['topicable']['url']
                     m = requests.get(message_url, headers=headers_422, auth=auth_422)
                     messages = m.json()
                     # for mm in messages:
@@ -276,4 +281,4 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                     continue
     tmp = write_directory + topic_directory
 
-    return usefulData, drainProject, tmp
+    return usefulData, basecampName, tmp
