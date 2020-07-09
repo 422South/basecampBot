@@ -5,6 +5,7 @@ import requests
 from re import search, IGNORECASE
 import shotgun_api3 as sg3
 import pprint
+import shutil
 
 SCRIPT_KEY = os.environ.get('SG_KEY')
 SCRIPT_NAME = os.environ.get('SG_NAME')
@@ -13,12 +14,23 @@ sg = sg3.Shotgun(os.environ.get('SG_HOST'), SCRIPT_NAME, SCRIPT_KEY)
 
 app = Flask(__name__)
 
-write_directory = 'BasecampDownloads/'
+write_directory = 'BasecampDownloads'
+write_directory = write_directory + "/"
+
+
+'''
+    Function to return some <default> HTML if the user somehow accesses the local host website
+'''
 
 
 @app.route("/", methods=['GET', 'POST'])
 def defaultLocalHost():
     return "<h1>This is a blank page..." + "</h1>"
+
+
+'''
+    Function to check authorisation for our shotgun site
+'''
 
 
 def get_auth_header():
@@ -33,19 +45,23 @@ def get_auth_header():
         'session_uuid': request.form.get('session_uuid')
     }
     resp = requests.post(SITE_URL + '/auth/access_token', headers=headers, params=params)
-    pprint.pprint(resp)
+    # pprint.pprint(resp)
     return {
         'Accept': 'application/json',
         'Authorization': 'Bearer ' + resp.json()['access_token']
     }
 
-"""
 
-"""
+'''
+    Function to update all basecamp threads throughout the site
+'''
 
 
 @app.route("/basecamp/updateall", methods=['GET', 'POST'])
 def updateAllThreads():
+    if not os.path.exists(write_directory):
+        os.mkdir(write_directory)
+
     notes = sg.find('Note', [['sg_basecamptopic', 'is_not', '']], ['sg_basecamptopic', 'sg_latestpostid', 'note_links'])
     for note in notes:
         latestID = note['sg_latestpostid']
@@ -54,30 +70,49 @@ def updateAllThreads():
 
         createNote(latestID, basecamptopic, assetID)
 
-    return "<h1>Threads updated " + "</h1>"
+    if os.path.exists(write_directory):
+        shutil.rmtree("BasecampDownloads", ignore_errors=True)
+
+    return "<h1>Threads updated" + "</h1>"
+
+
+'''
+    Function to update a specific basecamp thread
+'''
 
 
 @app.route("/basecamp/confirm", methods=['GET', 'POST'])
 def confirm():
+    if not os.path.exists(write_directory):
+        os.mkdir(write_directory)
+
     basecamptopic = request.args.get('topic')
     assetID = request.args.get('assetid')
 
     createNote(0, basecamptopic, int(assetID))
 
+    if os.path.exists(write_directory):
+        shutil.rmtree("BasecampDownloads", ignore_errors=True)
+
     return "<h1>Upload Successful!</h1>"
+
+
+'''
+    Actual creation of notes and replies on shotgun
+'''
 
 
 def createNote(latestPostID, baseCampTopic, assetId):
 
-    asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id'])
+    asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id', 'project'])
 
     baseCampTopic = re.sub(r'^.*?---', '', baseCampTopic)
     baseCampTopic = baseCampTopic.replace(' ', '_').replace('/', '_')
 
     basecampJSON, drainProject, writeDirectory = getBasecampFiles(latestPostID, baseCampTopic)
 
-    # theProjectID = sg.find_one('Project', [['name', 'is', drainProject]], ['id'])
-    theProjectID = 289
+    theProjectID = asset['project'].get('id')
+    # theProjectID = 289
 
     # Find all users on the project
     userList = []
@@ -122,7 +157,8 @@ def createNote(latestPostID, baseCampTopic, assetId):
                 .replace('<b>', '') \
                 .replace('</b>', '') \
                 .replace('&lt;', '<') \
-                .replace('&gt;', '>')
+                .replace('&gt;', '>') \
+                .replace('&nbsp;', ' ')
         else:
             theContents = ""
 
@@ -150,57 +186,56 @@ def createNote(latestPostID, baseCampTopic, assetId):
     return
 
 
+'''
+    Function to process AMI and generate the web form to ask the user which thread to download
+'''
+
+
 @app.route("/basecamp/initiate", methods=['GET', 'POST'])
 def process_ami():
+    if not os.path.exists(write_directory):
+        os.mkdir(write_directory)
+
     # pprint.pprint(request.form)
     auth_header = get_auth_header()
 
-    # pprint.pprint(auth_header)
-    for asset_id in [int(i) for i in request.form.get('selected_ids').split(',')]:
-        filters = [['id', 'is', asset_id]]
-        assets = sg.find_one('Asset', filters, ['name', 'code', 'description', 'tasks', 'sg_asset_type', 'project', 'notes'])
-        assetName = assets['code']
-        print("Asset is " + assetName)
-        latestPostID = 0
-        baseCampTopic = ""
-        found = False
-        for note in assets['notes']:
-            note_specific = sg.find_one('Note', [["id", "is", note['id']]], ['sg_basecamptopic', 'sg_latestpostid'])
-            if note_specific['sg_basecamptopic'] != None:
-                found = True
-                if note_specific['sg_latestpostid'] > latestPostID:
-                    latestPostID = note_specific['sg_latestpostid']
-                    baseCampTopic = note_specific['sg_basecamptopic']
-                    createNote(latestPostID, baseCampTopic, asset_id)
+    assetTemp = request.form.get('selected_ids').split(',')
+    asset_id = assetTemp[0]
 
-        if not found:
-            '''
-                Need to ask the user what the baseCampTopic is to continue
-            '''
+    '''
+        Need to ask the user what the baseCampTopic is to continue
+    '''
 
-            # print "Loading UI"
-            htmlTmp = ""
+    # print "Loading UI"
+    htmlTmp = ""
 
-            url = 'https://basecamp.com/2978927/api/v1/projects.json'
-            headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
-            auth_422 = ('craig@422south.com', 'Millenium2')
-            r = requests.get(url, headers=headers_422, auth=auth_422)
-            for basecampProject in r.json():
-                if search('^drain', basecampProject['name'], IGNORECASE):
-                    topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(basecampProject['id']) + '/topics.json'
-                    t = requests.get(topic_url, headers=headers_422, auth=auth_422)
-                    topics = t.json()
-                    for topic in topics:
-                        temp = basecampProject['name'] + '---' + str(topic['title'])
-                        htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
+    url = 'https://basecamp.com/2978927/api/v1/projects.json'
+    headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
+    auth_422 = ('craig@422south.com', 'Millenium2')
+    r = requests.get(url, headers=headers_422, auth=auth_422)
+    for basecampProject in r.json():
+        if search('^drain', basecampProject['name'], IGNORECASE):
+            topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(basecampProject['id']) + '/topics.json'
+            t = requests.get(topic_url, headers=headers_422, auth=auth_422)
+            topics = t.json()
+            for topic in topics:
+                temp = basecampProject['name'] + '---' + str(topic['title'])
+                htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
 
-            return '<form action="/basecamp/confirm">' \
-                   '<select name="topic" size="number_of_options">' \
-                   + htmlTmp + \
-                   '</select>' \
-                   '<input type="submit" value="Confirm">' \
-                   '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
-                   '</form>'
+    return '<form action="/basecamp/confirm">' \
+           '<label for="lname">Please select a project to create a basecamp thread for</label><br><br>' \
+           '<select name="topic" size="number_of_options">' \
+           + htmlTmp + \
+           '</select><br><br>' \
+           '<input type="submit" value="Confirm"><br><br>' \
+           '<label for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
+           '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
+           '</form>'
+
+
+'''
+    Function to pull images / notes down from basecamp
+'''
 
 
 def getBasecampFiles(latestPostID, baseCampTopic):
