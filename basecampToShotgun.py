@@ -5,9 +5,6 @@ import requests
 from re import search, IGNORECASE
 import shotgun_api3 as sg3
 
-import Tkinter as tk
-from Tkinter import *
-
 SCRIPT_KEY = os.environ.get('SG_KEY')
 SCRIPT_NAME = os.environ.get('SG_NAME')
 SITE_URL = os.environ.get('SG_HOST') + '/api/v1'
@@ -16,6 +13,11 @@ sg = sg3.Shotgun(os.environ.get('SG_HOST'), SCRIPT_NAME, SCRIPT_KEY)
 app = Flask(__name__)
 
 write_directory = 'BasecampDownloads/'
+
+
+@app.route("/", methods=['GET', 'POST'])
+def defaultLocalHost():
+    return "<h1>This is a blank page..." + "</h1>"
 
 
 def get_auth_header():
@@ -37,7 +39,7 @@ def get_auth_header():
     }
 
 
-@app.route("/updateall", methods=['GET', 'POST'])
+@app.route("/basecamp/updateall", methods=['GET', 'POST'])
 def updateAllThreads():
     notes = sg.find('Note', [['sg_basecamptopic', 'is_not', '']], ['sg_basecamptopic', 'sg_latestpostid', 'note_links'])
     for note in notes:
@@ -50,14 +52,14 @@ def updateAllThreads():
     return "<h1>Threads updated " + "</h1>"
 
 
-@app.route("/confirm", methods=['GET', 'POST'])
+@app.route("/basecamp/confirm", methods=['GET', 'POST'])
 def confirm():
     basecamptopic = request.args.get('topic')
     assetID = request.args.get('assetid')
 
-    carryOn(0, basecamptopic, assetID)
+    carryOn(0, basecamptopic, int(assetID))
 
-    return "<h1>That is Cofirmed!</h1>"
+    return "<h1>Upload Successful!</h1>"
 
 
 def carryOn(latestPostID, baseCampTopic, assetId):
@@ -91,7 +93,7 @@ def carryOn(latestPostID, baseCampTopic, assetId):
             # 'addressings_to': userList,
             'suppress_email_notif': True,
         }
-        # sg.create('Note', note_data)
+        sg.create('Note', note_data)
 
     # Build replies onto the new note or add to it if it already exists
     baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic]], ['name'])
@@ -119,36 +121,14 @@ def carryOn(latestPostID, baseCampTopic, assetId):
         else:
             theContents = ""
 
-        isClient = False
-
-        humanUser = sg.find_one('HumanUser', [['name', 'is', i[1]]], ['id'])
-        if humanUser == None:
-
-            isClient = True
-            clientUser = sg.find_one('ClientUser', [['name', 'is', i[1]]], ['id'])
-            if clientUser == None:
-                userData = {
-                    'name': i[1],
-                    'password_change_next_login': True,
-                }
-                # sg.create('ClientUser', userData)
-
-        replyDateCreation = 'This note was created on ' + i[4].replace('T', ' ').replace('.000Z', '') + '\n\n'
-
-        if not isClient:
-            reply_data = {
-                'entity': baseCampThread,
-                'content': replyDateCreation + '' + theContents,
-                'user': humanUser
-            }
-            # sg.create('Reply', reply_data)
-        else:
-            reply_data = {
-                'entity': baseCampThread,
-                'content': replyDateCreation + '' + theContents,
-                'user': clientUser
-            }
-            # sg.create('Reply', reply_data)
+        botUser = sg.find_one('ClientUser', [['name', 'is', 'Basecamp Bot']], ['name'])
+        replyDateCreation = 'This note was created by ' + i[1] + ' on ' + i[4].replace('T', ' ').replace('.000Z', '') + '\n\n'
+        reply_data = {
+            'entity': baseCampThread,
+            'content': replyDateCreation + '' + theContents,
+            'user': botUser
+        }
+        sg.create('Reply', reply_data)
 
         for j in i[3]:
             res = {key: j[key] for key in j.keys() and {'name'}}
@@ -160,10 +140,12 @@ def carryOn(latestPostID, baseCampTopic, assetId):
     postIDData = {
         'sg_latestpostid': str(latestPostID),
     }
-    # sg.update('Note', baseCampThread['id'], postIDData)
+    sg.update('Note', baseCampThread['id'], postIDData)
+
+    return
 
 
-@app.route("/", methods=['GET', 'POST'])
+@app.route("/basecamp/initiate", methods=['GET', 'POST'])
 def process_ami():
     # pprint.pprint(request.form)
     auth_header = get_auth_header()
@@ -207,7 +189,7 @@ def process_ami():
                         temp = oo['name'] + '---' + str(tt['title'])
                         htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
 
-            return '<form action="/confirm">' \
+            return '<form action="/basecamp/confirm">' \
                    '<select name="topic" size="number_of_options">' \
                    + htmlTmp + \
                    '</select>' \
