@@ -211,13 +211,22 @@ def process_ami():
     '''
     found = False
 
-    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName]], ['sg_basecamptopic'])
+    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName]], ['sg_basecamptopic', 'sg_latestpostid'])
     for note in potentialNotes:
         if note['sg_basecamptopic'] is not None:
             found = True
 
     if found:
-        updateAllThreads()
+
+        if not os.path.exists(write_directory):
+            os.mkdir(write_directory)
+
+        writeDirectory = createNote(note['sg_latestpostid'], note['sg_basecamptopic'], int(asset_id))
+
+        if os.path.exists(write_directory):
+            if os.path.exists(writeDirectory):
+                shutil.rmtree(writeDirectory, ignore_errors=True)
+
         return "<h1>A basecamp thread for this asset already exists, and has just been updated</h1>"
 
     else:
