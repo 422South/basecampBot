@@ -68,10 +68,10 @@ def updateAllThreads():
         assetID = note['note_links'][0].get("id")
         basecamptopic = note['sg_basecamptopic']
 
-        createNote(latestID, basecamptopic, assetID)
-
-    if os.path.exists(write_directory):
-        shutil.rmtree("BasecampDownloads", ignore_errors=True)
+        writeDirectory = createNote(latestID, basecamptopic, assetID)
+        if os.path.exists(write_directory):
+            if os.path.exists(writeDirectory):
+                shutil.rmtree(writeDirectory, ignore_errors=True)
 
     return "<h1>Threads updated" + "</h1>"
 
@@ -89,10 +89,11 @@ def confirm():
     basecamptopic = request.args.get('topic')
     assetID = request.args.get('assetid')
 
-    createNote(0, basecamptopic, int(assetID))
+    writeDirectory = createNote(0, basecamptopic, int(assetID))
 
     if os.path.exists(write_directory):
-        shutil.rmtree("BasecampDownloads", ignore_errors=True)
+        if os.path.exists(writeDirectory):
+            shutil.rmtree(writeDirectory, ignore_errors=True)
 
     return "<h1>Upload Successful!</h1>"
 
@@ -183,7 +184,7 @@ def createNote(latestPostID, baseCampTopic, assetId):
     }
     sg.update('Note', baseCampThread['id'], postIDData)
 
-    return
+    return writeDirectory
 
 
 '''
@@ -202,35 +203,49 @@ def process_ami():
     assetTemp = request.form.get('selected_ids').split(',')
     asset_id = assetTemp[0]
 
+    asset = sg.find_one('Asset', [['id', 'is', int(asset_id)]], ['id', 'code'])
+    assetName = asset['code']
+
     '''
         Need to ask the user what the baseCampTopic is to continue
     '''
+    found = False
 
-    # print "Loading UI"
-    htmlTmp = ""
+    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName]], ['sg_basecamptopic'])
+    for note in potentialNotes:
+        if note['sg_basecamptopic'] is not None:
+            found = True
 
-    url = 'https://basecamp.com/2978927/api/v1/projects.json'
-    headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
-    auth_422 = ('craig@422south.com', 'Millenium2')
-    r = requests.get(url, headers=headers_422, auth=auth_422)
-    for basecampProject in r.json():
-        if search('^drain', basecampProject['name'], IGNORECASE):
-            topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(basecampProject['id']) + '/topics.json'
-            t = requests.get(topic_url, headers=headers_422, auth=auth_422)
-            topics = t.json()
-            for topic in topics:
-                temp = basecampProject['name'] + '---' + str(topic['title'])
-                htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
+    if found:
+        updateAllThreads()
+        return "<h1>A basecamp thread for this asset already exists, and has just been updated</h1>"
 
-    return '<form action="/basecamp/confirm">' \
-           '<label for="lname">Please select a project to create a basecamp thread for</label><br><br>' \
-           '<select name="topic" size="number_of_options">' \
-           + htmlTmp + \
-           '</select><br><br>' \
-           '<input type="submit" value="Confirm"><br><br>' \
-           '<label for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
-           '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
-           '</form>'
+    else:
+        # print "Loading UI"
+        htmlTmp = ""
+
+        url = 'https://basecamp.com/2978927/api/v1/projects.json'
+        headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
+        auth_422 = ('craig@422south.com', 'Millenium2')
+        r = requests.get(url, headers=headers_422, auth=auth_422)
+        for basecampProject in r.json():
+            if search('^drain', basecampProject['name'], IGNORECASE):
+                topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(basecampProject['id']) + '/topics.json'
+                t = requests.get(topic_url, headers=headers_422, auth=auth_422)
+                topics = t.json()
+                for topic in topics:
+                    temp = basecampProject['name'] + '---' + str(topic['title'])
+                    htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
+
+        return '<form action="/basecamp/confirm">' \
+               '<label for="lname">' + str(assetName) + '<br>Please select a basecamp topic to attach to this asset</label><br><br>' \
+               '<select name="topic" size="number_of_options">' \
+               + htmlTmp + \
+               '</select><br><br>' \
+               '<input type="submit" value="Confirm"><br><br>' \
+               '<label for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
+               '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
+               '</form>'
 
 
 '''
