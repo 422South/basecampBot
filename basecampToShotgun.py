@@ -1,6 +1,6 @@
 import datetime
 import os, re, sys
-from flask import Flask, request
+from flask import Flask, request,abort
 import requests
 from re import search, IGNORECASE
 import shotgun_api3 as sg3
@@ -35,7 +35,7 @@ def _setup_logger(level=logging.DEBUG, file='test.log', console_log=True):
 
 hostname = socket.gethostname()
 if search('deadline', hostname, IGNORECASE):
-    logger = _setup_logger(file='/var/log/httpd/basecamp_bot.log', console_log=False, level=logging.INFO)
+    logger = _setup_logger(file='/var/log/httpd/basecamp_bot.log', console_log=False, level=logging.DEBUG)
 
 
 else:
@@ -59,11 +59,16 @@ logger.debug("WriteDrectory: %s" % write_directory)
 
 
 def checkAuthentication():
-    logger.info("route : /")
+
     key = 'MyBigSecret'
     sorted_params = []
     # Echo back information about what was posted in the form
     form = request.form
+    # logger.debug("Authenication: %s" % form)
+    if not 'signature' in form.keys():
+        logger.debug("Request not signed")
+        return False
+
     for field in form.keys():
         if field != "signature":
             sorted_params.append("%s=%s\r\n" % (field, form[field]))
@@ -71,8 +76,12 @@ def checkAuthentication():
     sorted_params.sort()
     string_to_verify = ''.join(sorted_params)
     signature = hmac.new(key, string_to_verify, hashlib.sha1).hexdigest()
+    now = datetime.datetime.utcnow()
+    request_time = datetime.datetime.strptime(form['timestamp'], "%Y-%m-%dT%H:%M:%SZ")
+    delta = (now - request_time).total_seconds()
+    logger.debug("Delta: %d" % delta)
 
-    if form.get('signature') == signature:
+    if form.get('signature') == signature and delta < 10:
         return True
     else:
         return False
@@ -86,10 +95,12 @@ def checkAuthentication():
 @app.route("/", methods=['GET', 'POST'])
 def defaultLocalHost():
     logger.info("route : /")
-
+    logger.debug(request.headers)
+    if request.headers['host'] and search('^localhost', request.headers['host'], IGNORECASE):
+        return ""
     authenticated = checkAuthentication()
     if not authenticated:
-        return "<h1>404 page not found</h1>"
+        abort(404)
 
     return ""
 
@@ -127,9 +138,12 @@ def get_auth_header():
 def updateAllThreads():
     logger.info("route : /basecamp/updateall")
 
+    localhost = request.headers['host'] and search('^localhost', request.headers['host'], IGNORECASE)
+
     authenticated = checkAuthentication()
-    if not authenticated:
-        return "<h1>404 page not found</h1>"
+    if not authenticated and not localhost:
+        abort(404)
+        return ""
 
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
@@ -159,7 +173,8 @@ def confirm():
 
     authenticated = checkAuthentication()
     if not authenticated:
-        return "<h1>404 page not found</h1>"
+        abort(404)
+        return ""
 
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
@@ -280,11 +295,12 @@ def createNote(latestPostID, baseCampTopic, assetId):
 @app.route("/basecamp/initiate", methods=['GET', 'POST'])
 def process_ami():
     logger.info("route : /basecamp/initiate")
-    logger.debug("Call JSON: %s" % request.form)
+    # logger.debug("Call JSON: %s" % request.form)
 
     authenticated = checkAuthentication()
     if not authenticated:
-        return "<h1>404 page not found</h1>"
+        abort(404)
+        return ""
 
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
@@ -305,7 +321,7 @@ def process_ami():
 
     potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName]],
                              ['sg_basecamptopic', 'sg_latestpostid', 'subject'])
-    logger.debug("Potenetial Notes: %s" % potentialNotes)
+    # logger.debug("Potenetial Notes: %s" % potentialNotes)
     for note in potentialNotes:
         if note['sg_basecamptopic'] is not None:
             found = True
