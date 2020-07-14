@@ -8,6 +8,8 @@ import pprint
 import shutil
 import logging
 import socket
+import hashlib
+import hmac
 
 app = Flask(__name__)
 
@@ -50,6 +52,32 @@ write_directory = os.path.join(curdir, 'BasecampDownloads/')
 
 logger.debug("WriteDrectory: %s" % write_directory)
 
+
+'''
+    Function to authenticate that the application call has come from shotgun
+'''
+
+
+def checkAuthentication():
+    logger.info("route : /")
+    key = 'MyBigSecret'
+    sorted_params = []
+    # Echo back information about what was posted in the form
+    form = request.form
+    for field in form.keys():
+        if field != "signature":
+            sorted_params.append("%s=%s\r\n" % (field, form[field]))
+
+    sorted_params.sort()
+    string_to_verify = ''.join(sorted_params)
+    signature = hmac.new(key, string_to_verify, hashlib.sha1).hexdigest()
+
+    if form.get('signature') == signature:
+        return True
+    else:
+        return False
+
+
 '''
     Function to return some <default> HTML if the user somehow accesses the local host website
 '''
@@ -58,6 +86,11 @@ logger.debug("WriteDrectory: %s" % write_directory)
 @app.route("/", methods=['GET', 'POST'])
 def defaultLocalHost():
     logger.info("route : /")
+
+    authenticated = checkAuthentication()
+    if not authenticated:
+        return "<h1>404 page not found</h1>"
+
     return ""
 
 
@@ -93,6 +126,11 @@ def get_auth_header():
 @app.route("/basecamp/updateall", methods=['GET', 'POST'])
 def updateAllThreads():
     logger.info("route : /basecamp/updateall")
+
+    authenticated = checkAuthentication()
+    if not authenticated:
+        return "<h1>404 page not found</h1>"
+
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
 
@@ -107,7 +145,7 @@ def updateAllThreads():
             if os.path.exists(writeDirectory):
                 shutil.rmtree(writeDirectory, ignore_errors=True)
     logger.info("%d Threads updated" % len(notes))
-    return "<h2>Threads updated" + "</h2>"
+    return "<h2><p style='color: grey';>Threads updated</p></h2>"
 
 
 '''
@@ -119,6 +157,10 @@ def updateAllThreads():
 def confirm():
     logger.info("route : /basecamp/confirm")
 
+    authenticated = checkAuthentication()
+    if not authenticated:
+        return "<h1>404 page not found</h1>"
+
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
 
@@ -126,13 +168,18 @@ def confirm():
     logger.info(request)
     assetID = request.args.get('assetid')
 
-    writeDirectory = createNote(0, basecamptopic, int(assetID))
+    try:
+        writeDirectory = createNote(0, basecamptopic, int(assetID))
+    except:
+        return "<h2><p style='color: grey';>I ran into an error creating a new note for this asset</p></h2>"
 
     if os.path.exists(write_directory):
         if os.path.exists(writeDirectory):
             shutil.rmtree(writeDirectory, ignore_errors=True)
+
     logger.info("Upload successful for %s" % request.args)
-    return "<h2>Upload Successful!</h2>"
+
+    return "<h2><p style='color: grey';>Upload Successful!</p></h2>"
 
 
 '''
@@ -234,6 +281,11 @@ def createNote(latestPostID, baseCampTopic, assetId):
 def process_ami():
     logger.info("route : /basecamp/initiate")
     logger.debug("Call JSON: %s" % request.form)
+
+    authenticated = checkAuthentication()
+    if not authenticated:
+        return "<h1>404 page not found</h1>"
+
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
 
@@ -252,46 +304,53 @@ def process_ami():
     found = False
 
     potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName]],
-                             ['sg_basecamptopic', 'sg_latestpostid'])
+                             ['sg_basecamptopic', 'sg_latestpostid', 'subject'])
     logger.debug("Potenetial Notes: %s" % potentialNotes)
     for note in potentialNotes:
         if note['sg_basecamptopic'] is not None:
             found = True
+            break
 
     if found:
 
-        if not os.path.exists(write_directory):
-            os.mkdir(write_directory)
-        logger.debug("Note: %s" % note)
-        writeDirectory = createNote(note['sg_latestpostid'], note['sg_basecamptopic'], int(asset_id))
+        try:
+            if not os.path.exists(write_directory):
+                os.mkdir(write_directory)
+            logger.debug("Note: %s" % note)
+            writeDirectory = createNote(note['sg_latestpostid'], note['sg_basecamptopic'], int(asset_id))
 
-        if os.path.exists(write_directory):
-            if os.path.exists(writeDirectory):
-                shutil.rmtree(writeDirectory, ignore_errors=True)
+            if os.path.exists(write_directory):
+                if os.path.exists(writeDirectory):
+                    shutil.rmtree(writeDirectory, ignore_errors=True)
 
-        return "<h2>A basecamp thread for this asset already exists, and has just been updated</h2>"
+            return "<h2><p style='color: grey';>A basecamp thread for this asset already exists, and has just been updated</p></h2>"
+        except:
+            return "<h2><p style='color: grey';>I ran into an error attempting to update the note for asset " + str(assetName) + "</p></h2>"
 
     else:
         # print "Loading UI"
         htmlTmp = ""
 
-        url = 'https://basecamp.com/2978927/api/v1/projects.json'
-        headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
-        auth_422 = ('craig@422south.com', 'Millenium2')
-        r = requests.get(url, headers=headers_422, auth=auth_422)
-        logger.debug("Call JSON: %s" % r)
-        for basecampProject in r.json():
-            if search('^drain', basecampProject['name'], IGNORECASE):
-                topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(
-                    basecampProject['id']) + '/topics.json'
-                t = requests.get(topic_url, headers=headers_422, auth=auth_422)
-                topics = t.json()
-                for topic in topics:
-                    temp = basecampProject['name'] + '---' + str(topic['title'])
-                    htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
+        try:
+            url = 'https://basecamp.com/2978927/api/v1/projects.json'
+            headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
+            auth_422 = ('craig@422south.com', 'Millenium2')
+            r = requests.get(url, headers=headers_422, auth=auth_422)
+            logger.debug("Call JSON: %s" % r)
+            for basecampProject in r.json():
+                if search('^drain', basecampProject['name'], IGNORECASE):
+                    topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(
+                        basecampProject['id']) + '/topics.json'
+                    t = requests.get(topic_url, headers=headers_422, auth=auth_422)
+                    topics = t.json()
+                    for topic in topics:
+                        temp = basecampProject['name'] + '---' + str(topic['title'])
+                        htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
+        except:
+            return "<h2><p style='color: grey';>I ran into an error connecting to basecamp</p></h2>"
 
         return '<form action="/basecamp/confirm">' \
-               '<label for="lname">' + str(
+               '<label for="lname"><p style="color: grey";>' + str(
             assetName) + '<br>Please select a basecamp topic to attach to this asset</label><br><br>' \
                          '<select name="topic" size="number_of_options">' \
                + htmlTmp + \
