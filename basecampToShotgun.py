@@ -6,17 +6,49 @@ from re import search, IGNORECASE
 import shotgun_api3 as sg3
 import pprint
 import shutil
+import logging
+import socket
+
+app = Flask(__name__)
+
+
+def _setup_logger(level=logging.DEBUG, file='test.log', console_log=True):
+    logger = logging.getLogger(os.path.basename(__file__))
+    logger.setLevel(level)
+
+    if file is not None:
+        FORMAT = "[%(asctime)-15s %(levelname)s] %(message)s"
+        fileHandler = logging.FileHandler(file)
+        formatter = logging.Formatter(FORMAT)
+        fileHandler.setFormatter(formatter)
+        logger.addHandler(fileHandler)
+    if console_log:
+        console = logging.StreamHandler()
+        console.setLevel(level)
+        console.setFormatter(formatter)
+        logger.addHandler(console)
+        logger.debug("Hostname: %s" % hostname)
+    return logger
+
+
+hostname = socket.gethostname()
+if search('deadline', hostname, IGNORECASE):
+    logger = _setup_logger(file='/var/log/httpd/basecamp_bot.log', console_log=False, level=logging.INFO)
+
+
+else:
+    logger = _setup_logger(file='basecamp_bot.log')
 
 SCRIPT_KEY = os.environ.get('SG_KEY')
 SCRIPT_NAME = os.environ.get('SG_NAME')
 SITE_URL = os.environ.get('SG_HOST') + '/api/v1'
+
 sg = sg3.Shotgun(os.environ.get('SG_HOST'), SCRIPT_NAME, SCRIPT_KEY)
 
-app = Flask(__name__)
+curdir = os.path.dirname(__file__)
+write_directory = os.path.join(curdir, 'BasecampDownloads/')
 
-write_directory = 'BasecampDownloads'
-write_directory = write_directory + "/"
-
+logger.debug("WriteDrectory: %s" % write_directory)
 
 '''
     Function to return some <default> HTML if the user somehow accesses the local host website
@@ -25,7 +57,8 @@ write_directory = write_directory + "/"
 
 @app.route("/", methods=['GET', 'POST'])
 def defaultLocalHost():
-    return "<h1>This is a blank page..." + "</h1>"
+    logger.info("route : /")
+    return ""
 
 
 '''
@@ -45,7 +78,7 @@ def get_auth_header():
         'session_uuid': request.form.get('session_uuid')
     }
     resp = requests.post(SITE_URL + '/auth/access_token', headers=headers, params=params)
-    # pprint.pprint(resp)
+    pprint.pprint(resp)
     return {
         'Accept': 'application/json',
         'Authorization': 'Bearer ' + resp.json()['access_token']
@@ -59,6 +92,7 @@ def get_auth_header():
 
 @app.route("/basecamp/updateall", methods=['GET', 'POST'])
 def updateAllThreads():
+    logger.info("route : /basecamp/updateall")
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
 
@@ -67,13 +101,13 @@ def updateAllThreads():
         latestID = note['sg_latestpostid']
         assetID = note['note_links'][0].get("id")
         basecamptopic = note['sg_basecamptopic']
-
+        logger.info("Upadating Asset %s with thread %s" % (note['note_links'][0]['name'], basecamptopic))
         writeDirectory = createNote(latestID, basecamptopic, assetID)
         if os.path.exists(write_directory):
             if os.path.exists(writeDirectory):
                 shutil.rmtree(writeDirectory, ignore_errors=True)
-
-    return "<h1>Threads updated" + "</h1>"
+    logger.info("%d Threads updated" % len(notes))
+    return "<h2>Threads updated" + "</h2>"
 
 
 '''
@@ -83,10 +117,13 @@ def updateAllThreads():
 
 @app.route("/basecamp/confirm", methods=['GET', 'POST'])
 def confirm():
+    logger.info("route : /basecamp/confirm")
+
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
 
     basecamptopic = request.args.get('topic')
+    logger.info(request)
     assetID = request.args.get('assetid')
 
     writeDirectory = createNote(0, basecamptopic, int(assetID))
@@ -94,8 +131,8 @@ def confirm():
     if os.path.exists(write_directory):
         if os.path.exists(writeDirectory):
             shutil.rmtree(writeDirectory, ignore_errors=True)
-
-    return "<h1>Upload Successful!</h1>"
+    logger.info("Upload successful for %s" % request.args)
+    return "<h2>Upload Successful!</h2>"
 
 
 '''
@@ -104,7 +141,7 @@ def confirm():
 
 
 def createNote(latestPostID, baseCampTopic, assetId):
-
+    logger.debug(baseCampTopic)
     asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id', 'project'])
 
     baseCampTopic = re.sub(r'^.*?---', '', baseCampTopic)
@@ -164,7 +201,8 @@ def createNote(latestPostID, baseCampTopic, assetId):
             theContents = ""
 
         botUser = sg.find_one('ClientUser', [['name', 'is', 'Basecamp Bot']], ['name'])
-        replyDateCreation = 'This note was created by ' + i[1] + ' on ' + i[4].replace('T', ' ').replace('.000Z', '') + '\n\n'
+        replyDateCreation = 'This note was created by ' + i[1] + ' on ' + i[4].replace('T', ' ').replace('.000Z',
+                                                                                                         '') + '\n\n'
         reply_data = {
             'entity': baseCampThread,
             'content': replyDateCreation + '' + theContents,
@@ -194,6 +232,8 @@ def createNote(latestPostID, baseCampTopic, assetId):
 
 @app.route("/basecamp/initiate", methods=['GET', 'POST'])
 def process_ami():
+    logger.info("route : /basecamp/initiate")
+    logger.debug("Call JSON: %s" % request.form)
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
 
@@ -211,7 +251,9 @@ def process_ami():
     '''
     found = False
 
-    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName]], ['sg_basecamptopic', 'sg_latestpostid'])
+    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName]],
+                             ['sg_basecamptopic', 'sg_latestpostid'])
+    logger.debug("Potenetial Notes: %s" % potentialNotes)
     for note in potentialNotes:
         if note['sg_basecamptopic'] is not None:
             found = True
@@ -220,14 +262,14 @@ def process_ami():
 
         if not os.path.exists(write_directory):
             os.mkdir(write_directory)
-
+        logger.debug("Note: %s" % note)
         writeDirectory = createNote(note['sg_latestpostid'], note['sg_basecamptopic'], int(asset_id))
 
         if os.path.exists(write_directory):
             if os.path.exists(writeDirectory):
                 shutil.rmtree(writeDirectory, ignore_errors=True)
 
-        return "<h1>A basecamp thread for this asset already exists, and has just been updated</h1>"
+        return "<h2>A basecamp thread for this asset already exists, and has just been updated</h2>"
 
     else:
         # print "Loading UI"
@@ -237,9 +279,11 @@ def process_ami():
         headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
         auth_422 = ('craig@422south.com', 'Millenium2')
         r = requests.get(url, headers=headers_422, auth=auth_422)
+        logger.debug("Call JSON: %s" % r)
         for basecampProject in r.json():
             if search('^drain', basecampProject['name'], IGNORECASE):
-                topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(basecampProject['id']) + '/topics.json'
+                topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(
+                    basecampProject['id']) + '/topics.json'
                 t = requests.get(topic_url, headers=headers_422, auth=auth_422)
                 topics = t.json()
                 for topic in topics:
@@ -247,14 +291,15 @@ def process_ami():
                     htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
 
         return '<form action="/basecamp/confirm">' \
-               '<label for="lname">' + str(assetName) + '<br>Please select a basecamp topic to attach to this asset</label><br><br>' \
-               '<select name="topic" size="number_of_options">' \
+               '<label for="lname">' + str(
+            assetName) + '<br>Please select a basecamp topic to attach to this asset</label><br><br>' \
+                         '<select name="topic" size="number_of_options">' \
                + htmlTmp + \
                '</select><br><br>' \
                '<input type="submit" value="Confirm"><br><br>' \
                '<label for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
                '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
-               '</form>'
+                                                                                            '</form>'
 
 
 '''
@@ -299,7 +344,7 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                         if os.path.exists(write_directory):
                             topic_directory = topic_title.replace(' ', '_').replace('/', '_')
                             topic_path = os.path.join(write_directory, topic_directory)
-
+                            logger.debug("Topic Path: %s" % topic_path)
                             if not os.path.exists(topic_path):
                                 os.makedirs(topic_path)
 
@@ -313,10 +358,12 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                                 # Only pull down posts more recent than what is already on shotgun
                                 postID = str(comment['id'])
                                 if postID > latestPostID:
-                                    postData = [str(comment['id']), comment['creator']['name'], comment['content'], comment['attachments'], comment['created_at']]
+                                    postData = [str(comment['id']), comment['creator']['name'], comment['content'],
+                                                comment['attachments'], comment['created_at']]
                                     usefulData.append(postData)
-                                    wf.write('<h3>' + str(comment['id']) + '&nbsp' + comment['creator']['name'] + '&nbsp' +
-                                             comment['created_at'] + '</h3><div>')
+                                    wf.write(
+                                        '<h3>' + str(comment['id']) + '&nbsp' + comment['creator']['name'] + '&nbsp' +
+                                        comment['created_at'] + '</h3><div>')
                                     if comment['content'] != None:
                                         wf.write(comment['content'].encode('ascii', 'replace'))
                                     wf.write('</br>')
