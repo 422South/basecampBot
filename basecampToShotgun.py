@@ -139,11 +139,14 @@ def updateAllThreads():
     logger.info("route : /basecamp/updateall")
 
     localhost = request.headers['host'] and search('^localhost', request.headers['host'], IGNORECASE)
-
-    authenticated = checkAuthentication()
-    if not authenticated and not localhost:
-        abort(404)
-        return ""
+    logger.debug("Hostname: %s" % request.headers['host'])
+    if localhost:
+        logger.debug("Localhost detected")
+    else:
+        authenticated = checkAuthentication()
+        if not authenticated:
+            abort(404)
+            return ""
 
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
