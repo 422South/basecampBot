@@ -138,7 +138,6 @@ def get_auth_header():
 
 
 @app.route("/basecamp/updateall", methods=['GET', 'POST'])
-@app.route("/basecamp/updateall", methods=['GET', 'POST'])
 def updateAllThreads():
     logger.info("route : /basecamp/updateall")
 
