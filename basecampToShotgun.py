@@ -1,6 +1,6 @@
 import datetime
 import os, re, sys
-from flask import Flask, request,abort
+from flask import Flask, request, abort
 import requests
 from re import search, IGNORECASE
 import shotgun_api3 as sg3
@@ -11,6 +11,7 @@ import socket
 import hashlib
 import hmac
 import time
+
 
 app = Flask(__name__)
 
@@ -42,6 +43,8 @@ if search('deadline', hostname, IGNORECASE):
 else:
     logger = _setup_logger(file='basecamp_bot.log')
 
+logger.debug("Python Version " + sys.version)
+
 SCRIPT_KEY = os.environ.get('SG_KEY')
 SCRIPT_NAME = os.environ.get('SG_NAME')
 SITE_URL = os.environ.get('SG_HOST') + '/api/v1'
@@ -51,10 +54,7 @@ sg = sg3.Shotgun(os.environ.get('SG_HOST'), SCRIPT_NAME, SCRIPT_KEY)
 curdir = os.path.dirname(__file__)
 write_directory = os.path.join(curdir, 'BasecampDownloads/')
 
-confirmKey = ""
-
 logger.debug("WriteDrectory: %s" % write_directory)
-
 
 '''
     Function to authenticate that the application call has come from shotgun
@@ -62,7 +62,6 @@ logger.debug("WriteDrectory: %s" % write_directory)
 
 
 def checkAuthentication():
-
     key = 'MyBigSecret'
     sorted_params = []
     # Echo back information about what was posted in the form
@@ -177,17 +176,28 @@ def updateAllThreads():
 def confirm():
     logger.info("route : /basecamp/confirm")
     logger.debug("Hostname: %s" % request.headers['host'])
-
-    if not request.args.has_key('key'):
+    form = request.form
+    logger.debug("Form: %s" % form)
+    if not form.has_key('key') and not form.has_key('assetid') and not form.has_key('timestamp'):
         abort(404)
         return ""
 
-    key = request.args.get('key')
-
+    key = form['key']
+    assetID = form['assetid']
+    timestamp = form['timestamp']
+    now = datetime.datetime.utcnow()
+    request_time = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
+    delta = (now - request_time).total_seconds()
+    logger.debug(delta)
+    if delta > 10:
+        abort(404)
+        return ""
+    (quotient, remainder) = divmod(int(assetID) * 5476, 5)
+    confirmKey = str(int(assetID) * 764389 + quotient + remainder)
     verifyKey = hmac.new('MyBigSecret', confirmKey, hashlib.sha1).hexdigest()
 
-    logger.info("key = " + key)
-    logger.info("confirmkey = " + verifyKey)
+    logger.debug("key = " + key)
+    logger.debug("confirmkey verifykey %s -- %s" % (confirmKey, verifyKey))
 
     if not key == verifyKey:
         abort(404)
@@ -196,14 +206,13 @@ def confirm():
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
 
-    basecamptopic = request.args.get('topic')
+    basecamptopic = form['topic']
     logger.info(request)
-    assetID = request.args.get('assetid')
 
-    try:
-        writeDirectory = createNote(0, basecamptopic, int(assetID))
-    except:
-        return "<h2><p style='color: grey';>I ran into an error creating a new note for this asset</p></h2>"
+    # try:
+    writeDirectory = createNote(0, basecamptopic, int(assetID))
+    # except:
+    #     return "<h2><p style='color: grey';>I ran into an error creating a new note for this asset</p></h2>"
 
     if os.path.exists(write_directory):
         if os.path.exists(writeDirectory):
@@ -338,7 +347,8 @@ def process_ami():
     '''
     found = False
 
-    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName], ['project', 'is', {'type': 'Project', "id": projectID}]],
+    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName],
+                                      ['project', 'is', {'type': 'Project', "id": projectID}]],
                              ['sg_basecamptopic', 'sg_latestpostid', 'subject'])
 
     # logger.debug("Potenetial Notes: %s" % potentialNotes)
@@ -361,18 +371,13 @@ def process_ami():
 
             return "<h2><p style='color: grey';>A basecamp thread for this asset already exists, and has just been updated</p></h2>"
         except:
-            return "<h2><p style='color: grey';>I ran into an error attempting to update the note for asset " + str(assetName) + "</p></h2>"
+            return "<h2><p style='color: grey';>I ran into an error attempting to update the note for asset " + str(
+                assetName) + "</p></h2>"
 
     else:
         # print "Loading UI"
         htmlTmp = ""
-        global confirmKey
-
-        t = time.localtime()
         key = 'MyBigSecret'
-        confirmKey = time.strftime("%Y%m%d%H%M%S", t)
-
-        signature = hmac.new(key, confirmKey, hashlib.sha1).hexdigest()
 
         try:
             url = 'https://basecamp.com/2978927/api/v1/projects.json'
@@ -391,18 +396,32 @@ def process_ami():
                         htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
         except:
             return "<h2><p style='color: grey';>I ran into an error connecting to basecamp</p></h2>"
+        (quotient, remainder) = divmod(int(asset_id) * 5476, 5)
+        confirmKey = str(int(asset_id) * 764389 + quotient + remainder)
+        signature = hmac.new(key, confirmKey, hashlib.sha1).hexdigest()
+        logger.debug("process_ami: confirmkey verifykey %s -- %s" % (confirmKey, signature))
+#               document.getElementById(\"confirm_form\").submit(); \
+        js = "<script> \
+                function submit_with_time(){ \
+                document.getElementById('timestamp').value = new Date().toISOString(); \
+                document.getElementById(\"confirm_form\").submit(); \
+                } \
+                </script>"
 
-        return '<form action="/basecamp/confirm">' \
-               '<label for="lname"><p style="color: grey";>' + str(
-            assetName) + '<br>Please select a basecamp topic to attach to this asset</label><br><br>' \
-                         '<select name="topic" size="number_of_options">' \
-               + htmlTmp + \
-               '</select><br><br>' \
-               '<input type="submit" value="Confirm"><br><br>' \
-               '<label for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
-               '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
-               '<input type="hidden" id="key" name="key" value="' + str(signature) + '" >' \
-                        '</form>'
+        # return js + '<form name="confirm_form" action="/basecamp/confirm" method="post">' \
+
+        return js + '<form id="confirm_form" action="/basecamp/confirm" method="post">' \
+                    '<label for="lname"><p style="color: grey";>' + str(
+                    assetName) + '<br>Please select a basecamp topic to attach to this asset</label><br><br>' \
+                    '<select name="topic" size="number_of_options">' \
+                    + htmlTmp + \
+                    '</select><br><br>' \
+                    '<input type="button" value="Confirm" onclick="submit_with_time()"><br><br>' \
+                    '<label for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
+                    '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
+                    '<input type="hidden" id="key" name="key" value="' + str(signature) + '" >' \
+                    '<input type="hidden" id="timestamp" name="timestamp" value="" >' \
+                    '</form>'
 
 
 '''
@@ -442,7 +461,7 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                     #     pprint.pprint(mm)
                     # pprint.pprint(messages['comments'])
                     comments = messages['comments']
-
+                    topic_directory=""
                     if len(comments) > 0:
                         if os.path.exists(write_directory):
                             topic_directory = topic_title.replace(' ', '_').replace('/', '_')
@@ -467,7 +486,7 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                                     wf.write(
                                         '<h3>' + str(comment['id']) + '&nbsp' + comment['creator']['name'] + '&nbsp' +
                                         comment['created_at'] + '</h3><div>')
-                                    if comment['content'] != None:
+                                    if comment['content'] is not None:
                                         wf.write(comment['content'].encode('ascii', 'replace'))
                                     wf.write('</br>')
                                     attachments = comment['attachments']
