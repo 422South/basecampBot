@@ -173,8 +173,9 @@ def updateAllThreads():
 @app.route("/basecamp/confirm", methods=['GET', 'POST'])
 def confirm():
     logger.info("route : /basecamp/confirm")
-
+    logger.debug("Hostname: %s" % request.headers['host'])
     authenticated = checkAuthentication()
+    key = request.args['key']
     if not authenticated:
         abort(404)
         return ""
@@ -367,8 +368,9 @@ def process_ami():
                         htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
         except:
             return "<h2><p style='color: grey';>I ran into an error connecting to basecamp</p></h2>"
-
-        return '<form action="/basecamp/confirm">' \
+        #sting_to_verify = datetime
+#signature = hmac.new(key, string_to_verify, hashlib.sha1).hexdigest()
+        return '<form action="/basecamp/confirm?key=dfgblkjdflkgzdfklj;ghsdklgnjzdoh">' \
                '<label for="lname"><p style="color: grey";>' + str(
             assetName) + '<br>Please select a basecamp topic to attach to this asset</label><br><br>' \
                          '<select name="topic" size="number_of_options">' \
