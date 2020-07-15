@@ -10,6 +10,7 @@ import logging
 import socket
 import hashlib
 import hmac
+import time
 
 app = Flask(__name__)
 
@@ -49,6 +50,8 @@ sg = sg3.Shotgun(os.environ.get('SG_HOST'), SCRIPT_NAME, SCRIPT_KEY)
 
 curdir = os.path.dirname(__file__)
 write_directory = os.path.join(curdir, 'BasecampDownloads/')
+
+confirmKey = ""
 
 logger.debug("WriteDrectory: %s" % write_directory)
 
@@ -135,6 +138,7 @@ def get_auth_header():
 
 
 @app.route("/basecamp/updateall", methods=['GET', 'POST'])
+@app.route("/basecamp/updateall", methods=['GET', 'POST'])
 def updateAllThreads():
     logger.info("route : /basecamp/updateall")
 
@@ -174,9 +178,19 @@ def updateAllThreads():
 def confirm():
     logger.info("route : /basecamp/confirm")
     logger.debug("Hostname: %s" % request.headers['host'])
-    authenticated = checkAuthentication()
-    key = request.args['key']
-    if not authenticated:
+
+    if not request.args.has_key('key'):
+        abort(404)
+        return ""
+
+    key = request.args.get('key')
+
+    verifyKey = hmac.new('MyBigSecret', confirmKey, hashlib.sha1).hexdigest()
+
+    logger.info("key = " + key)
+    logger.info("confirmkey = " + verifyKey)
+
+    if not key == verifyKey:
         abort(404)
         return ""
 
@@ -315,16 +329,19 @@ def process_ami():
     assetTemp = request.form.get('selected_ids').split(',')
     asset_id = assetTemp[0]
 
-    asset = sg.find_one('Asset', [['id', 'is', int(asset_id)]], ['id', 'code'])
+    asset = sg.find_one('Asset', [['id', 'is', int(asset_id)]], ['id', 'code', 'project'])
     assetName = asset['code']
+
+    projectID = asset['project'].get('id')
 
     '''
         Need to ask the user what the baseCampTopic is to continue
     '''
     found = False
 
-    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName]],
+    potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName], ['project', 'is', {'type': 'Project', "id": projectID}]],
                              ['sg_basecamptopic', 'sg_latestpostid', 'subject'])
+
     # logger.debug("Potenetial Notes: %s" % potentialNotes)
     for note in potentialNotes:
         if note['sg_basecamptopic'] is not None:
@@ -350,6 +367,13 @@ def process_ami():
     else:
         # print "Loading UI"
         htmlTmp = ""
+        global confirmKey
+
+        t = time.localtime()
+        key = 'MyBigSecret'
+        confirmKey = time.strftime("%Y%m%d%H%M%S", t)
+
+        signature = hmac.new(key, confirmKey, hashlib.sha1).hexdigest()
 
         try:
             url = 'https://basecamp.com/2978927/api/v1/projects.json'
@@ -368,9 +392,8 @@ def process_ami():
                         htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
         except:
             return "<h2><p style='color: grey';>I ran into an error connecting to basecamp</p></h2>"
-        #sting_to_verify = datetime
-#signature = hmac.new(key, string_to_verify, hashlib.sha1).hexdigest()
-        return '<form action="/basecamp/confirm?key=dfgblkjdflkgzdfklj;ghsdklgnjzdoh">' \
+
+        return '<form action="/basecamp/confirm">' \
                '<label for="lname"><p style="color: grey";>' + str(
             assetName) + '<br>Please select a basecamp topic to attach to this asset</label><br><br>' \
                          '<select name="topic" size="number_of_options">' \
@@ -379,7 +402,8 @@ def process_ami():
                '<input type="submit" value="Confirm"><br><br>' \
                '<label for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
                '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
-                                                                                            '</form>'
+               '<input type="hidden" id="key" name="key" value="' + str(signature) + '" >' \
+                        '</form>'
 
 
 '''
