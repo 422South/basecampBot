@@ -43,8 +43,6 @@ if search('deadline', hostname, IGNORECASE):
 else:
     logger = _setup_logger(file='basecamp_bot.log')
 
-logger.debug("Python Version " + sys.version)
-
 SCRIPT_KEY = os.environ.get('SG_KEY')
 SCRIPT_NAME = os.environ.get('SG_NAME')
 SITE_URL = os.environ.get('SG_HOST') + '/api/v1'
@@ -53,8 +51,6 @@ sg = sg3.Shotgun(os.environ.get('SG_HOST'), SCRIPT_NAME, SCRIPT_KEY)
 
 curdir = os.path.dirname(__file__)
 write_directory = os.path.join(curdir, 'BasecampDownloads/')
-
-logger.debug("WriteDrectory: %s" % write_directory)
 
 '''
     Function to authenticate that the application call has come from shotgun
@@ -81,7 +77,7 @@ def checkAuthentication():
     now = datetime.datetime.utcnow()
     request_time = datetime.datetime.strptime(form['timestamp'], "%Y-%m-%dT%H:%M:%SZ")
     delta = (now - request_time).total_seconds()
-    logger.debug("Delta: %d" % delta)
+    # logger.debug("Delta: %d" % delta)
 
     if form.get('signature') == signature and delta < 10:
         return True
@@ -188,7 +184,7 @@ def confirm():
     now = datetime.datetime.utcnow()
     request_time = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
     delta = (now - request_time).total_seconds()
-    logger.debug(delta)
+    # logger.debug(delta)
     if delta > 10:
         abort(404)
         return ""
@@ -196,8 +192,8 @@ def confirm():
     confirmKey = str(int(assetID) * 764389 + quotient + remainder)
     verifyKey = hmac.new('MyBigSecret', confirmKey, hashlib.sha1).hexdigest()
 
-    logger.debug("key = " + key)
-    logger.debug("confirmkey verifykey %s -- %s" % (confirmKey, verifyKey))
+    # logger.debug("key = " + key)
+    # logger.debug("confirmkey verifykey %s -- %s" % (confirmKey, verifyKey))
 
     if not key == verifyKey:
         abort(404)
@@ -384,7 +380,7 @@ def process_ami():
             headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
             auth_422 = ('craig@422south.com', 'Millenium2')
             r = requests.get(url, headers=headers_422, auth=auth_422)
-            logger.debug("Call JSON: %s" % r)
+            # logger.debug("Call JSON: %s" % r)
             for basecampProject in r.json():
                 if search('^drain', basecampProject['name'], IGNORECASE):
                     topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(
@@ -399,8 +395,8 @@ def process_ami():
         (quotient, remainder) = divmod(int(asset_id) * 5476, 5)
         confirmKey = str(int(asset_id) * 764389 + quotient + remainder)
         signature = hmac.new(key, confirmKey, hashlib.sha1).hexdigest()
-        logger.debug("process_ami: confirmkey verifykey %s -- %s" % (confirmKey, signature))
-#               document.getElementById(\"confirm_form\").submit(); \
+        # logger.debug("process_ami: confirmkey verifykey %s -- %s" % (confirmKey, signature))
+
         js = "<script> \
                 function submit_with_time(){ \
                 document.getElementById('timestamp').value = new Date().toISOString(); \
