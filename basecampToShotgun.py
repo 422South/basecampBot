@@ -154,6 +154,11 @@ def updateAllThreads():
         latestID = note['sg_latestpostid']
         assetID = note['note_links'][0].get("id")
         basecamptopic = note['sg_basecamptopic']
+
+        if os.path.exists(write_directory + basecamptopic):
+            # Skip this note for update as someone else is manually updating it
+            continue
+
         logger.info("Upadating Asset %s with thread %s" % (note['note_links'][0]['name'], basecamptopic))
         writeDirectory = createNote(latestID, basecamptopic, assetID)
         if os.path.exists(write_directory):
@@ -204,6 +209,12 @@ def confirm():
 
     basecamptopic = form['topic']
     logger.info(request)
+
+    tmp = re.sub(r'^.*?---', '', basecamptopic).replace(' ', '_').replace('/', '_')
+
+    if os.path.exists(write_directory + tmp):
+        # Don't continue for update as someone else is manually updating it
+        return "<h2><p style='color: grey';>Another user is currently attempting to update this thread!</p></h2>"
 
     try:
         writeDirectory = createNote(0, basecamptopic, int(assetID))
@@ -360,6 +371,11 @@ def process_ami():
             if not os.path.exists(write_directory):
                 os.mkdir(write_directory)
             logger.debug("Note: %s" % note)
+
+            if os.path.exists(write_directory + note['sg_basecamptopic']):
+                # Don't continue for update as someone else is manually updating it
+                return "<h2><p style='color: grey';>Another user is currently attempting to update this thread!</p></h2>"
+
             writeDirectory = createNote(note['sg_latestpostid'], note['sg_basecamptopic'], int(asset_id))
 
             if os.path.exists(write_directory):
@@ -389,6 +405,8 @@ def process_ami():
                     t = requests.get(topic_url, headers=headers_422, auth=auth_422)
                     topics = t.json()
                     for topic in topics:
+                        if topicAlreadyExists(topic['title']):
+                            continue
                         temp = basecampProject['name'] + '---' + str(topic['title'])
                         htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
         except:
@@ -508,3 +526,13 @@ def getBasecampFiles(latestPostID, baseCampTopic):
     tmp = write_directory + topic_directory
 
     return usefulData, basecampName, tmp
+
+
+def topicAlreadyExists(topic):
+    topic = topic.replace(' ', '_').replace('/', '_')
+    note = sg.find('Note', [['subject', 'is', 'Basecamp Thread for ' + topic]], ['name'])
+
+    if len(note) > 0:
+        return True
+
+    return False
