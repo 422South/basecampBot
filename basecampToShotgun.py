@@ -161,6 +161,9 @@ def updateAllThreads():
 
         logger.info("Upadating Asset %s with thread %s" % (note['note_links'][0]['name'], basecamptopic))
         writeDirectory = createNote(latestID, basecamptopic, assetID)
+        if writeDirectory == "":
+            logger.info("I ran into an error updating this asset, a ticket has been made")
+            continue
         if os.path.exists(write_directory):
             if os.path.exists(writeDirectory):
                 shutil.rmtree(writeDirectory, ignore_errors=True)
@@ -218,6 +221,9 @@ def confirm():
 
     try:
         writeDirectory = createNote(0, basecamptopic, int(assetID))
+        if writeDirectory == "":
+            return "<h2><p style='color: grey';>I ran into an error creating a new note for this asset</p></h2>"
+
     except:
         logger.debug("Exception during create note")
         return "<h2><p style='color: grey';>I ran into an error creating a new note for this asset</p></h2>"
@@ -237,88 +243,102 @@ def confirm():
 
 
 def createNote(latestPostID, baseCampTopic, assetId):
-    logger.debug(baseCampTopic)
-    asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id', 'project'])
+    try:
+        logger.debug(baseCampTopic)
+        asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id', 'project'])
 
-    baseCampTopic = re.sub(r'^.*?---', '', baseCampTopic)
-    baseCampTopic = baseCampTopic.replace(' ', '_').replace('/', '_')
+        baseCampTopic = re.sub(r'^.*?---', '', baseCampTopic)
+        baseCampTopic = baseCampTopic.replace(' ', '_').replace('/', '_')
 
-    basecampJSON, drainProject, writeDirectory = getBasecampFiles(latestPostID, baseCampTopic)
+        basecampJSON, drainProject, writeDirectory = getBasecampFiles(latestPostID, baseCampTopic)
 
-    theProjectID = asset['project'].get('id')
-    # theProjectID = 289
+        theProjectID = asset['project'].get('id')
+        # theProjectID = 289
 
-    # Find all users on the project
-    userList = []
-    project = sg.find("HumanUser", [["projects", "is", {'type': 'Project', "id": theProjectID}]], ["name"])
-    for user in project:
-        userList.append(user)
+        # Find all users on the project
+        userList = []
+        project = sg.find("HumanUser", [["projects", "is", {'type': 'Project', "id": theProjectID}]], ["name"])
+        for user in project:
+            userList.append(user)
 
-    # If the basecamp thread doesn't exist create it
-    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic], ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
-    if baseCampThread == None:
-        note_data = {
-            'project': {'type': 'Project', 'id': theProjectID},
-            'subject': 'Basecamp Thread for ' + baseCampTopic,
-            'content': 'Everything from basecamp for this project',
-            'sg_basecamptopic': baseCampTopic,
-            'sg_latestpostid': '0',
-            'note_links': [{'type': 'Asset', 'id': asset['id']}],
-            # 'addressings_to': userList,
-            'suppress_email_notif': True,
+        # If the basecamp thread doesn't exist create it
+        baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic], ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
+        if baseCampThread == None:
+            note_data = {
+                'project': {'type': 'Project', 'id': theProjectID},
+                'subject': 'Basecamp Thread for ' + baseCampTopic,
+                'content': 'Everything from basecamp for this project',
+                'sg_basecamptopic': baseCampTopic,
+                'sg_latestpostid': '0',
+                'note_links': [{'type': 'Asset', 'id': asset['id']}],
+                # 'addressings_to': userList,
+                'suppress_email_notif': True,
+            }
+            sg.create('Note', note_data)
+
+        # Build replies onto the new note or add to it if it already exists
+        baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic], ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
+        for i in basecampJSON:
+
+            if i[0] > latestPostID:
+                latestPostID = i[0]
+
+            if i[2] != None:
+                theContents = i[2].replace('<br>', '\n') \
+                    .replace('<p>', '') \
+                    .replace('</p>', '') \
+                    .replace('<ul>', '') \
+                    .replace('</ul>', '') \
+                    .replace('<div>', '') \
+                    .replace('</div', '') \
+                    .replace('<li>', '') \
+                    .replace('</li>', '') \
+                    .replace('<a href=', '') \
+                    .replace('</a>', '') \
+                    .replace('<b>', '') \
+                    .replace('</b>', '') \
+                    .replace('&lt;', '<') \
+                    .replace('&gt;', '>') \
+                    .replace('&nbsp;', ' ')
+            else:
+                theContents = ""
+
+            botUser = sg.find_one('ClientUser', [['name', 'is', 'Basecamp Bot']], ['name'])
+            replyDateCreation = 'This note was created by ' + i[1] + ' on ' + i[4].replace('T', ' ').replace('.000Z',
+                                                                                                             '') + '\n\n'
+            reply_data = {
+                'entity': baseCampThread,
+                'content': replyDateCreation + '' + theContents,
+                'user': botUser
+            }
+            sg.create('Reply', reply_data)
+
+            for j in i[3]:
+                res = {key: j[key] for key in j.keys() and {'name'}}
+                k = res.values()
+                imageLocation = writeDirectory + '/' + str(k[0])
+                sg.upload('Note', baseCampThread['id'], imageLocation)
+
+        # update the threads post ID
+        postIDData = {
+            'sg_latestpostid': str(latestPostID),
         }
-        sg.create('Note', note_data)
+        sg.update('Note', baseCampThread['id'], postIDData)
 
-    # Build replies onto the new note or add to it if it already exists
-    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic], ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
-    for i in basecampJSON:
+        return writeDirectory
 
-        if i[0] > latestPostID:
-            latestPostID = i[0]
+    except Exception as e:
 
-        if i[2] != None:
-            theContents = i[2].replace('<br>', '\n') \
-                .replace('<p>', '') \
-                .replace('</p>', '') \
-                .replace('<ul>', '') \
-                .replace('</ul>', '') \
-                .replace('<div>', '') \
-                .replace('</div', '') \
-                .replace('<li>', '') \
-                .replace('</li>', '') \
-                .replace('<a href=', '') \
-                .replace('</a>', '') \
-                .replace('<b>', '') \
-                .replace('</b>', '') \
-                .replace('&lt;', '<') \
-                .replace('&gt;', '>') \
-                .replace('&nbsp;', ' ')
-        else:
-            theContents = ""
+        group = sg.find_one("Group", [["code", "is", 'Data/Tech Management']], ["id"])
 
-        botUser = sg.find_one('ClientUser', [['name', 'is', 'Basecamp Bot']], ['name'])
-        replyDateCreation = 'This note was created by ' + i[1] + ' on ' + i[4].replace('T', ' ').replace('.000Z',
-                                                                                                         '') + '\n\n'
-        reply_data = {
-            'entity': baseCampThread,
-            'content': replyDateCreation + '' + theContents,
-            'user': botUser
+        ticketData = {
+            'project': {'type': 'Project', 'id': 289},
+            'title': 'Basecamp Bot Error with ' + baseCampTopic,
+            'description': str(e),
+            'addressings_to': [{'type': 'Group', 'id': group['id']}],
         }
-        sg.create('Reply', reply_data)
-
-        for j in i[3]:
-            res = {key: j[key] for key in j.keys() and {'name'}}
-            k = res.values()
-            imageLocation = writeDirectory + '/' + str(k[0])
-            sg.upload('Note', baseCampThread['id'], imageLocation)
-
-    # update the threads post ID
-    postIDData = {
-        'sg_latestpostid': str(latestPostID),
-    }
-    sg.update('Note', baseCampThread['id'], postIDData)
-
-    return writeDirectory
+        sg.create('Ticket', ticketData)
+        return ""
 
 
 '''
@@ -377,6 +397,9 @@ def process_ami():
                 return "<h2><p style='color: grey';>Another user is currently attempting to update this thread!</p></h2>"
 
             writeDirectory = createNote(note['sg_latestpostid'], note['sg_basecamptopic'], int(asset_id))
+            if writeDirectory == "":
+                "<h2><p style='color: grey';>I ran into an error attempting to update the note for asset" + str(
+                    assetName) + "</p></h2>"
 
             if os.path.exists(write_directory):
                 if os.path.exists(writeDirectory):
