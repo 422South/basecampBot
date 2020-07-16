@@ -244,7 +244,7 @@ def createNote(latestPostID, baseCampTopic, assetId):
         userList.append(user)
 
     # If the basecamp thread doesn't exist create it
-    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic]], ['name'])
+    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic], ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
     if baseCampThread == None:
         note_data = {
             'project': {'type': 'Project', 'id': theProjectID},
@@ -259,7 +259,7 @@ def createNote(latestPostID, baseCampTopic, assetId):
         sg.create('Note', note_data)
 
     # Build replies onto the new note or add to it if it already exists
-    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic]], ['name'])
+    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic], ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
     for i in basecampJSON:
 
         if i[0] > latestPostID:
