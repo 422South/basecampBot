@@ -205,16 +205,17 @@ def confirm():
     basecamptopic = form['topic']
     logger.info(request)
 
-    # try:
-    writeDirectory = createNote(0, basecamptopic, int(assetID))
-    # except:
-    #     return "<h2><p style='color: grey';>I ran into an error creating a new note for this asset</p></h2>"
+    try:
+        writeDirectory = createNote(0, basecamptopic, int(assetID))
+    except:
+        logger.debug("Exception during create note")
+        return "<h2><p style='color: grey';>I ran into an error creating a new note for this asset</p></h2>"
 
     if os.path.exists(write_directory):
         if os.path.exists(writeDirectory):
             shutil.rmtree(writeDirectory, ignore_errors=True)
 
-    logger.info("Upload successful for %s" % request.args)
+    logger.info("Upload successful for %s" % request.form)
 
     return "<h2><p style='color: grey';>Upload Successful!</p></h2>"
 
@@ -400,6 +401,7 @@ def process_ami():
         js = "<script> \
                 function submit_with_time(){ \
                 document.getElementById('timestamp').value = new Date().toISOString(); \
+                document.getElementById('info_text').innerHTML = \"Processing the Basecamp thread ... please be patient!\"; \
                 document.getElementById(\"confirm_form\").submit(); \
                 } \
                 </script>"
@@ -413,7 +415,7 @@ def process_ami():
                     + htmlTmp + \
                     '</select><br><br>' \
                     '<input type="button" value="Confirm" onclick="submit_with_time()"><br><br>' \
-                    '<label for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
+                    '<label id="info_text" for="lname">This may take a while to download, this page will change when the operation is complete</label><br>' \
                     '<input type="hidden" id="assetid" name="assetid" value="' + str(asset_id) + '" >' \
                     '<input type="hidden" id="key" name="key" value="' + str(signature) + '" >' \
                     '<input type="hidden" id="timestamp" name="timestamp" value="" >' \
