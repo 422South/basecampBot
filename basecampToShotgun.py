@@ -310,7 +310,11 @@ def createNote(latestPostID, baseCampTopic, assetId):
             res = {key: j[key] for key in j.keys() and {'name'}}
             k = res.values()
             imageLocation = writeDirectory + '/' + str(k[0])
-            sg.upload('Note', baseCampThread['id'], imageLocation)
+            logger.debug("Image filename: %s" % imageLocation)
+            if os.path.exists(imageLocation):
+                logger.debug("Image Found!")
+            img_id = sg.upload('Note', baseCampThread['id'], imageLocation)
+            logger.debug("Upload Image id: %d" % img_id)
 
     # update the threads post ID
     postIDData = {
@@ -446,6 +450,7 @@ def process_ami():
 
 
 def getBasecampFiles(latestPostID, baseCampTopic):
+    logger.debug("getBasecampFiles(latestpostID=%s,bascampTopic=%s)" % (latestPostID, baseCampTopic))
     url = 'https://basecamp.com/2978927/api/v1/projects.json'
     headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
     auth_422 = ('craig@422south.com', 'Millenium2')
@@ -453,6 +458,7 @@ def getBasecampFiles(latestPostID, baseCampTopic):
     basecampName = ""
     usefulData = []
     # pprint.pprint(r.json(), indent= 5)
+
     for basecampProject in r.json():
         if search('^drain', basecampProject['name'], IGNORECASE):
             # pprint.pprint(basecampProject['name'])
@@ -479,12 +485,17 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                     comments = messages['comments']
                     topic_directory=""
                     if len(comments) > 0:
-                        if os.path.exists(write_directory):
-                            topic_directory = topic_title.replace(' ', '_').replace('/', '_')
-                            topic_path = os.path.join(write_directory, topic_directory)
-                            logger.debug("Topic Path: %s" % topic_path)
-                            if not os.path.exists(topic_path):
-                                os.makedirs(topic_path)
+                        logger.debug("Checking for existance of Write Directory: %s" % write_directory)
+                        # if os.path.exists(write_directory):
+                        #     logger.debug("Found!")
+                        topic_directory = topic_title.replace(' ', '_').replace('/', '_')
+                        topic_path = os.path.join(write_directory, topic_directory)
+                        logger.debug("Topic Path: %s" % topic_path)
+                        if not os.path.exists(topic_path):
+                            os.makedirs(topic_path)
+                        # else:
+                        #     logger.debug("NOT FOUND!")
+
 
                         write_path_topic = os.path.join(topic_path, topic_directory + '.html')
                         with open(write_path_topic, 'wb') as wf:
