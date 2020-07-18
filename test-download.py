@@ -3,7 +3,7 @@ import pprint
 import socket
 
 print(socket.gethostname())
-
+print(requests.__version__)
 headers_422 = {'Content-Type': 'image/png', 'User-Agent': '422App (craig@422south.com)'}
 auth_422 = ('craig@422south.com', 'Millenium2')
 url = 'https://asset1.basecamp.com/2978927/api/v1/projects/17520513/attachments/411298659/0b7d26b0-c814-11ea-8990-a0369f35efbe/original/smiley.png'

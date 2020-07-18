@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" serverName="Deadline" showNewOnSourceInSync="false">
+  <component name="PublishConfigData" serverName="deadline">
     <serverData>
-      <paths name="Deadline">
+      <paths name="deadline">
         <serverdata>
           <mappings>
-            <mapping deploy="/var/www/basecamp_bot/shotgunApp" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/var/www/webApp/shotgunApp" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

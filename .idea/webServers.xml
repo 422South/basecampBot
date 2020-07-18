@@ -2,8 +2,8 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="49b09b40-8b67-40c8-9083-e27094a57ee2" name="Deadline" url="http://192.168.1.253/">
-        <fileTransfer accessType="SFTP" host="192.168.1.253" port="22" sshConfigId="ce8d3ed2-dcea-4f02-9f3f-30d95912c9ae" sshConfig="root@192.168.1.253:22 password">
+      <webServer id="82d3886f-3e37-4398-9611-930e0ea9aca2" name="deadline" url="https://deadline.422south.com/">
+        <fileTransfer accessType="SFTP" host="192.168.1.253" port="22" sshConfigId="e4cd449f-68d0-4eb8-a7c1-22d1692cba37" sshConfig="root@192.168.1.253:22 password">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
