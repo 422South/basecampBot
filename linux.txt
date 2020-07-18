@@ -1,0 +1,1 @@
+curl -L -H "User-Agent:422-App (craig@422south.com)" -u "craig@422south.com:Millenium2" "https://asset1.basecamp.com/2978927/api/v1/projects/17520513/attachments/411298659/0b7d26b0-c814-11ea-8990-a0369f35efbe/original/smiley.png" > smiley1.png
