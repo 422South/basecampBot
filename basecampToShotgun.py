@@ -505,10 +505,9 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
 
                 # Only pull down the topic that is relevant
                 tmp = topic_title.replace(' ', '_').replace('/', '_')
-                if not gotID:
-                    topicID = topicName['id']
-                if uniqueIdentifier == 'New' and tmp == baseCampTopic or str(topicID) == uniqueIdentifier:
-                    gotID = True
+                topicID = topicName['id']
+                if str(topicID) == uniqueIdentifier or (uniqueIdentifier == 'New' and tmp == baseCampTopic):
+                    finalTopicID = topicID
                     basecampName = str(basecampProject['name']).replace(' ', '_').replace('/', '_')
                     message_url = topicName['topicable']['url']
                     m = requests.get(message_url, headers=headers_422, auth=auth_422)
@@ -519,7 +518,7 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                     comments = messages['comments']
                     topic_directory = ""
                     if len(comments) > 0:
-                        logger.debug("Checking for existance of Write Directory: %s" % write_directory)
+                        # logger.debug("Checking for existance of Write Directory: %s" % write_directory)
                         # if os.path.exists(write_directory):
                         #     logger.debug("Found!")
                         topic_directory = topic_title.replace(' ', '_').replace('/', '_')
@@ -594,7 +593,7 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                     continue
     tmp = write_directory + topic_directory
 
-    return usefulData, basecampName, tmp, topicID
+    return usefulData, basecampName, tmp, finalTopicID
 
 
 def topicAlreadyExists(topic):
