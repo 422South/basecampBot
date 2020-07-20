@@ -474,6 +474,7 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
     basecampName = ""
     usefulData = []
     topicID = ""
+    gotID = False
     # pprint.pprint(r.json(), indent= 5)
 
     for basecampProject in r.json():
@@ -491,8 +492,10 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
 
                 # Only pull down the topic that is relevant
                 tmp = topic_title.replace(' ', '_').replace('/', '_')
-                topicID = topicName['id']
+                if not gotID:
+                    topicID = topicName['id']
                 if uniqueIdentifier == 'New' and tmp == baseCampTopic or str(topicID) == uniqueIdentifier:
+                    gotID = True
                     basecampName = str(basecampProject['name']).replace(' ', '_').replace('/', '_')
                     message_url = topicName['topicable']['url']
                     m = requests.get(message_url, headers=headers_422, auth=auth_422)
