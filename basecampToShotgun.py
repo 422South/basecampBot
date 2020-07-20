@@ -61,7 +61,6 @@ def checkAuthentication():
     sorted_params = []
     # Echo back information about what was posted in the form
     form = request.form
-    # logger.debug("Authenication: %s" % form)
     if not 'signature' in form.keys():
         logger.debug("Request not signed")
         return False
@@ -76,7 +75,6 @@ def checkAuthentication():
     now = datetime.datetime.utcnow()
     request_time = datetime.datetime.strptime(form['timestamp'], "%Y-%m-%dT%H:%M:%SZ")
     delta = (now - request_time).total_seconds()
-    # logger.debug("Delta: %d" % delta)
 
     if form.get('signature') == signature and delta < 10:
         return True
@@ -136,7 +134,6 @@ def updateAllThreads():
     logger.info("route : /basecamp/updateall")
 
     localhost = request.headers['host'] and search('^localhost', request.headers['host'], IGNORECASE)
-    logger.debug("Hostname: %s" % request.headers['host'])
     if localhost:
         logger.debug("Localhost detected")
     else:
@@ -194,9 +191,7 @@ def updateAllThreads():
 @app.route("/basecamp/confirm", methods=['GET', 'POST'])
 def confirm():
     logger.info("route : /basecamp/confirm")
-    logger.debug("Hostname: %s" % request.headers['host'])
     form = request.form
-    logger.debug("Form: %s" % form)
     if not form.has_key('key') and not form.has_key('assetid') and not form.has_key('timestamp'):
         abort(404)
         return ""
@@ -207,16 +202,12 @@ def confirm():
     now = datetime.datetime.utcnow()
     request_time = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
     delta = (now - request_time).total_seconds()
-    # logger.debug(delta)
     if delta > 10:
         abort(404)
         return ""
     (quotient, remainder) = divmod(int(assetID) * 5476, 5)
     confirmKey = str(int(assetID) * 764389 + quotient + remainder)
     verifyKey = hmac.new('MyBigSecret', confirmKey, hashlib.sha1).hexdigest()
-
-    # logger.debug("key = " + key)
-    # logger.debug("confirmkey verifykey %s -- %s" % (confirmKey, verifyKey))
 
     if not key == verifyKey:
         abort(404)
@@ -242,7 +233,6 @@ def confirm():
 
     if os.path.exists(write_directory):
         if os.path.exists(writeDirectory):
-            logger.debug("deleted")
             shutil.rmtree(writeDirectory, ignore_errors=True)
 
     logger.info("Upload successful for %s" % request.form)
@@ -256,7 +246,6 @@ def confirm():
 
 
 def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
-    logger.debug(baseCampTopic)
     asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id', 'project'])
 
     baseCampTopic = re.sub(r'^.*?---', '', baseCampTopic)
@@ -339,11 +328,9 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
             res = {key: j[key] for key in j.keys() and {'name'}}
             k = res.values()
             imageLocation = writeDirectory + '/' + str(k[0])
-            logger.debug("Image filename: %s" % imageLocation)
             if os.path.exists(imageLocation):
-                logger.debug("Image Found!")
-            img_id = sg.upload('Note', baseCampThread['id'], imageLocation)
-            logger.debug("Upload Image id: %d" % img_id)
+                img_id = sg.upload('Note', baseCampThread['id'], imageLocation)
+
 
     # update the threads post ID
     postIDData = {
@@ -362,7 +349,6 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
 @app.route("/basecamp/initiate", methods=['GET', 'POST'])
 def process_ami():
     logger.info("route : /basecamp/initiate")
-    # logger.debug("Call JSON: %s" % request.form)
 
     authenticated = checkAuthentication()
     if not authenticated:
@@ -392,7 +378,6 @@ def process_ami():
                                       ['project', 'is', {'type': 'Project', "id": projectID}]],
                              ['sg_basecamptopic', 'sg_latestpostid', 'subject', 'sg_basecampidentifier'])
 
-    # logger.debug("Potenetial Notes: %s" % potentialNotes)
     for note in potentialNotes:
         if note['sg_basecamptopic'] is not None:
             found = True
@@ -403,7 +388,6 @@ def process_ami():
         try:
             if not os.path.exists(write_directory):
                 os.mkdir(write_directory)
-            logger.debug("Note: %s" % note)
 
             if os.path.exists(write_directory + note['sg_basecamptopic']):
                 # Don't continue for update as someone else is manually updating it
@@ -430,7 +414,6 @@ def process_ami():
             headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
             auth_422 = ('craig@422south.com', 'Millenium2')
             r = requests.get(url, headers=headers_422, auth=auth_422)
-            # logger.debug("Call JSON: %s" % r)
             for basecampProject in r.json():
                 if search('^drain', basecampProject['name'], IGNORECASE):
                     topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(
@@ -447,7 +430,6 @@ def process_ami():
         (quotient, remainder) = divmod(int(asset_id) * 5476, 5)
         confirmKey = str(int(asset_id) * 764389 + quotient + remainder)
         signature = hmac.new(key, confirmKey, hashlib.sha1).hexdigest()
-        # logger.debug("process_ami: confirmkey verifykey %s -- %s" % (confirmKey, signature))
 
         js = "<script> \
                 function submit_with_time(){ \
@@ -479,7 +461,6 @@ def process_ami():
 
 
 def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
-    logger.debug("getBasecampFiles(latestpostID=%s,bascampTopic=%s)" % (latestPostID, baseCampTopic))
     url = 'https://basecamp.com/2978927/api/v1/projects.json'
     headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
     auth_422 = ('craig@422south.com', 'Millenium2')
@@ -518,16 +499,10 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                     comments = messages['comments']
                     topic_directory = ""
                     if len(comments) > 0:
-                        # logger.debug("Checking for existance of Write Directory: %s" % write_directory)
-                        # if os.path.exists(write_directory):
-                        #     logger.debug("Found!")
                         topic_directory = topic_title.replace(' ', '_').replace('/', '_')
                         topic_path = os.path.join(write_directory, topic_directory)
-                        logger.debug("Topic Path: %s" % topic_path)
                         if not os.path.exists(topic_path):
                             os.makedirs(topic_path)
-                        # else:
-                        #     logger.debug("NOT FOUND!")
 
                         write_path_topic = os.path.join(topic_path, topic_directory + '.html')
                         with open(write_path_topic, 'wb') as wf:
@@ -544,16 +519,13 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                                         # print('Writing --> ' + write_path_topic)
                                         ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
                                         if ff.headers['Content-Type'] == 'application/xml':
-                                            logger.debug("Downloaded an xml file instead of an image")
+                                            logger.debug("Image file download failed %s" % ff.content)
                                             raise Exception('An error occurred downloading an image attachment')
 
                                         with open(write_path_topic, 'wb') as f:
                                             f.write(ff.content)
 
                             for comment in comments:
-                                # pprint.pprint(comment)
-                                # print(comment['id'], comment['content'])
-                                # print('Writing --> ' + write_path_topic)
 
                                 # Only pull down posts more recent than what is already on shotgun
                                 postID = str(comment['id'])
@@ -580,7 +552,7 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                                                 # print('Writing --> ' + write_path_topic)
                                                 ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
                                                 if ff.headers['Content-Type'] == 'application/xml':
-                                                    logger.debug("Downloaded an xml file instead of an image")
+                                                    logger.debug("Image file download failed %s" % ff.content)
                                                     raise Exception('An error occurred downloading an image attachment')
 
                                                 with open(write_path_topic, 'wb') as f:
