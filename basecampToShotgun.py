@@ -225,7 +225,7 @@ def confirm():
     if os.path.exists(write_directory):
         if os.path.exists(writeDirectory):
             logger.debug("deleted")
-            # shutil.rmtree(writeDirectory, ignore_errors=True)
+            shutil.rmtree(writeDirectory, ignore_errors=True)
 
     logger.info("Upload successful for %s" % request.form)
 
@@ -318,8 +318,8 @@ def createNote(latestPostID, baseCampTopic, assetId):
             logger.debug("Image filename: %s" % imageLocation)
             if os.path.exists(imageLocation):
                 logger.debug("Image Found!")
-            # img_id = sg.upload('Note', baseCampThread['id'], imageLocation)
-            # logger.debug("Upload Image id: %d" % img_id)
+            img_id = sg.upload('Note', baseCampThread['id'], imageLocation)
+            logger.debug("Upload Image id: %d" % img_id)
 
     # update the threads post ID
     postIDData = {
@@ -501,9 +501,24 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                         # else:
                         #     logger.debug("NOT FOUND!")
 
-
                         write_path_topic = os.path.join(topic_path, topic_directory + '.html')
                         with open(write_path_topic, 'wb') as wf:
+                            initialPostData = [str(messages['id']), messages['creator']['name'], messages['content'],
+                                               messages['attachments'], messages['created_at']]
+                            usefulData.append(initialPostData)
+
+                            attachments = messages['attachments']
+                            if len(attachments) > 0:
+                                for attach in attachments:
+                                    write_path_topic = os.path.join(topic_path, attach['name'])
+
+                                    if not os.path.exists(write_path_topic):
+                                        # print('Writing --> ' + write_path_topic)
+                                        ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
+
+                                        with open(write_path_topic, 'wb') as f:
+                                            f.write(ff.content)
+
                             for comment in comments:
                                 # pprint.pprint(comment)
                                 # print(comment['id'], comment['content'])
