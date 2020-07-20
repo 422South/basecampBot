@@ -12,7 +12,6 @@ import hashlib
 import hmac
 import time
 
-
 app = Flask(__name__)
 
 
@@ -149,18 +148,24 @@ def updateAllThreads():
     if not os.path.exists(write_directory):
         os.mkdir(write_directory)
 
-    notes = sg.find('Note', [['sg_basecamptopic', 'is_not', '']], ['sg_basecamptopic', 'sg_latestpostid', 'note_links'])
+    notes = sg.find('Note', [['sg_basecamptopic', 'is_not', '']], ['sg_basecamptopic', 'sg_latestpostid', 'note_links', 'sg_basecampidentifier'])
     for note in notes:
         latestID = note['sg_latestpostid']
         assetID = note['note_links'][0].get("id")
         basecamptopic = note['sg_basecamptopic']
+        uniqueIdentifier = note['sg_basecampidentifier']
 
         if os.path.exists(write_directory + basecamptopic):
             # Skip this note for update as someone else is manually updating it
             continue
 
         logger.info("Upadating Asset %s with thread %s" % (note['note_links'][0]['name'], basecamptopic))
-        writeDirectory = createNote(latestID, basecamptopic, assetID)
+        try:
+            writeDirectory = createNote(latestID, basecamptopic, assetID, uniqueIdentifier)
+        except:
+            logger.debug("Update all thread failed to update thread: " + str(basecamptopic))
+            continue
+
         if os.path.exists(write_directory):
             if os.path.exists(writeDirectory):
                 shutil.rmtree(writeDirectory, ignore_errors=True)
@@ -217,7 +222,7 @@ def confirm():
         return "<h2><p style='color: grey';>Another user is currently attempting to update this thread!</p></h2>"
 
     try:
-        writeDirectory = createNote(0, basecamptopic, int(assetID))
+        writeDirectory = createNote(0, basecamptopic, int(assetID), 'New')
     except:
         logger.debug("Exception during create note")
         return "<h2><p style='color: grey';>I ran into an error creating a new note for this asset</p></h2>"
@@ -237,14 +242,17 @@ def confirm():
 '''
 
 
-def createNote(latestPostID, baseCampTopic, assetId):
+def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
     logger.debug(baseCampTopic)
     asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id', 'project'])
 
     baseCampTopic = re.sub(r'^.*?---', '', baseCampTopic)
     baseCampTopic = baseCampTopic.replace(' ', '_').replace('/', '_')
 
-    basecampJSON, drainProject, writeDirectory = getBasecampFiles(latestPostID, baseCampTopic)
+    try:
+        basecampJSON, drainProject, writeDirectory, topicID = getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier)
+    except:
+        raise Exception('Error downloading files from basecamp')
 
     theProjectID = asset['project'].get('id')
     # theProjectID = 289
@@ -256,7 +264,8 @@ def createNote(latestPostID, baseCampTopic, assetId):
         userList.append(user)
 
     # If the basecamp thread doesn't exist create it
-    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic], ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
+    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic],
+                                          ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
     if baseCampThread == None:
         note_data = {
             'project': {'type': 'Project', 'id': theProjectID},
@@ -264,6 +273,7 @@ def createNote(latestPostID, baseCampTopic, assetId):
             'content': 'Everything from basecamp for this project',
             'sg_basecamptopic': baseCampTopic,
             'sg_latestpostid': '0',
+            'sg_basecampidentifier': str(topicID),
             'note_links': [{'type': 'Asset', 'id': asset['id']}],
             # 'addressings_to': userList,
             'suppress_email_notif': True,
@@ -271,7 +281,8 @@ def createNote(latestPostID, baseCampTopic, assetId):
         sg.create('Note', note_data)
 
     # Build replies onto the new note or add to it if it already exists
-    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic], ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
+    baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic],
+                                          ['project', 'is', {'type': 'Project', "id": theProjectID}]], ['name'])
     for i in basecampJSON:
 
         if i[0] > latestPostID:
@@ -366,7 +377,7 @@ def process_ami():
 
     potentialNotes = sg.find('Note', [['note_links', 'name_contains', assetName],
                                       ['project', 'is', {'type': 'Project', "id": projectID}]],
-                             ['sg_basecamptopic', 'sg_latestpostid', 'subject'])
+                             ['sg_basecamptopic', 'sg_latestpostid', 'subject', 'sg_basecampidentifier'])
 
     # logger.debug("Potenetial Notes: %s" % potentialNotes)
     for note in potentialNotes:
@@ -385,7 +396,7 @@ def process_ami():
                 # Don't continue for update as someone else is manually updating it
                 return "<h2><p style='color: grey';>Another user is currently attempting to update this thread!</p></h2>"
 
-            writeDirectory = createNote(note['sg_latestpostid'], note['sg_basecamptopic'], int(asset_id))
+            writeDirectory = createNote(note['sg_latestpostid'], note['sg_basecamptopic'], int(asset_id), note['sg_basecampidentifier'])
 
             if os.path.exists(write_directory):
                 if os.path.exists(writeDirectory):
@@ -454,7 +465,7 @@ def process_ami():
 '''
 
 
-def getBasecampFiles(latestPostID, baseCampTopic):
+def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
     logger.debug("getBasecampFiles(latestpostID=%s,bascampTopic=%s)" % (latestPostID, baseCampTopic))
     url = 'https://basecamp.com/2978927/api/v1/projects.json'
     headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
@@ -462,6 +473,7 @@ def getBasecampFiles(latestPostID, baseCampTopic):
     r = requests.get(url, headers=headers_422, auth=auth_422)
     basecampName = ""
     usefulData = []
+    topicID = ""
     # pprint.pprint(r.json(), indent= 5)
 
     for basecampProject in r.json():
@@ -479,7 +491,8 @@ def getBasecampFiles(latestPostID, baseCampTopic):
 
                 # Only pull down the topic that is relevant
                 tmp = topic_title.replace(' ', '_').replace('/', '_')
-                if tmp == baseCampTopic:
+                topicID = topicName['id']
+                if uniqueIdentifier == 'New' and tmp == baseCampTopic or str(topicID) == uniqueIdentifier:
                     basecampName = str(basecampProject['name']).replace(' ', '_').replace('/', '_')
                     message_url = topicName['topicable']['url']
                     m = requests.get(message_url, headers=headers_422, auth=auth_422)
@@ -488,7 +501,7 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                     #     pprint.pprint(mm)
                     # pprint.pprint(messages['comments'])
                     comments = messages['comments']
-                    topic_directory=""
+                    topic_directory = ""
                     if len(comments) > 0:
                         logger.debug("Checking for existance of Write Directory: %s" % write_directory)
                         # if os.path.exists(write_directory):
@@ -515,6 +528,9 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                                     if not os.path.exists(write_path_topic):
                                         # print('Writing --> ' + write_path_topic)
                                         ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
+                                        if ff.headers['Content-Type'] == 'application/xml':
+                                            logger.debug("Downloaded an xml file instead of an image")
+                                            raise Exception('An error occurred downloading an image attachment')
 
                                         with open(write_path_topic, 'wb') as f:
                                             f.write(ff.content)
@@ -548,6 +564,9 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                                             if not os.path.exists(write_path_topic):
                                                 # print('Writing --> ' + write_path_topic)
                                                 ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
+                                                if ff.headers['Content-Type'] == 'application/xml':
+                                                    logger.debug("Downloaded an xml file instead of an image")
+                                                    raise Exception('An error occurred downloading an image attachment')
 
                                                 with open(write_path_topic, 'wb') as f:
                                                     f.write(ff.content)
@@ -559,7 +578,7 @@ def getBasecampFiles(latestPostID, baseCampTopic):
                     continue
     tmp = write_directory + topic_directory
 
-    return usefulData, basecampName, tmp
+    return usefulData, basecampName, tmp, topicID
 
 
 def topicAlreadyExists(topic):
