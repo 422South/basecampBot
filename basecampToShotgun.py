@@ -11,6 +11,7 @@ import socket
 import hashlib
 import hmac
 import time
+import traceback
 
 app = Flask(__name__)
 
@@ -129,6 +130,43 @@ def get_auth_header():
 '''
 
 
+@app.route("/basecamp/checkProjects", methods=['GET', 'POST'])
+def checkProjects():
+    logger.info("route : /basecamp/checkProjects")
+
+    localhost = request.headers['host'] and search('^localhost', request.headers['host'], IGNORECASE)
+    if localhost:
+        logger.debug("Localhost detected")
+    else:
+        authenticated = checkAuthentication()
+        if not authenticated:
+            abort(404)
+            return ""
+
+    htmlTmp = ""
+
+    try:
+        url = 'https://basecamp.com/2978927/api/v1/projects.json'
+        headers_422 = {'Content-Type': 'application/json', 'User-Agent': '422App (craig@422south.com)'}
+        auth_422 = ('craig@422south.com', 'Millenium2')
+        r = requests.get(url, headers=headers_422, auth=auth_422)
+        for basecampProject in r.json():
+            if search('^drain', basecampProject['name'], IGNORECASE):
+                topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(
+                    basecampProject['id']) + '/topics.json'
+                t = requests.get(topic_url, headers=headers_422, auth=auth_422)
+                topics = t.json()
+                for topic in topics:
+                    if topicAlreadyExists(topic['title']):
+                        continue
+                    temp = basecampProject['name'] + '---' + str(topic['title'])
+                    htmlTmp = htmlTmp + '<option value="' + temp + '">' + temp + '</option>'
+
+        return "<h2><p style='color: grey';>Unlinked Basecamp Threads: <br><br>" + htmlTmp + "</p></h2>"
+    except:
+        return "<h2><p style='color: grey';>An error occurred accessing basecamp</p></h2>"
+
+
 @app.route("/basecamp/updateall", methods=['GET', 'POST'])
 def updateAllThreads():
     logger.info("route : /basecamp/updateall")
@@ -167,10 +205,12 @@ def updateAllThreads():
             asset = sg.find_one('Asset', [['id', 'is', assetID]], ['id', 'project'])
             theProjectID = asset['project'].get('id')
 
+            track = traceback.format_exc()
+
             ticketData = {
                 'project': {'type': 'Project', 'id': theProjectID},
                 'title': 'Basecamp Bot Error with ' + basecamptopic,
-                'description': str(e),
+                'description': str(track),
                 'addressings_to': [{'type': 'Group', 'id': group['id']}],
             }
             sg.create('Ticket', ticketData)
@@ -508,7 +548,7 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                         write_path_topic = os.path.join(topic_path, topic_directory + '.html')
                         with open(write_path_topic, 'wb') as wf:
                             if latestPostID < str(1):
-                                initialPostData = [str(messages['id']), messages['creator']['name'],
+                                initialPostData = [0, messages['creator']['name'],
                                                    messages['content'],
                                                    messages['attachments'], messages['created_at']]
                                 usefulData.append(initialPostData)
