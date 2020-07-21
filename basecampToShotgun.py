@@ -273,7 +273,7 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
         note_data = {
             'project': {'type': 'Project', 'id': theProjectID},
             'subject': 'Basecamp Thread for ' + baseCampTopic,
-            'content': 'Everything from basecamp for this project',
+            'content': 'Everything from basecamp for ' + baseCampTopic,
             'sg_basecamptopic': baseCampTopic,
             'sg_latestpostid': '0',
             'sg_basecampidentifier': str(topicID),
