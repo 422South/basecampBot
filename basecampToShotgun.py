@@ -152,11 +152,12 @@ def updateAllThreads():
         basecamptopic = note['sg_basecamptopic']
         uniqueIdentifier = note['sg_basecampidentifier']
 
+        logger.info("Upadating Asset %s with thread %s" % (note['note_links'][0]['name'], basecamptopic))
+
         if os.path.exists(write_directory + basecamptopic):
             # Skip this note for update as someone else is manually updating it
             continue
 
-        logger.info("Upadating Asset %s with thread %s" % (note['note_links'][0]['name'], basecamptopic))
         try:
             writeDirectory = createNote(latestID, basecamptopic, assetID, uniqueIdentifier)
         except Exception as e:
@@ -219,7 +220,7 @@ def confirm():
     basecamptopic = form['topic']
     logger.info(request)
 
-    tmp = re.sub(r'^.*?---', '', basecamptopic).replace(' ', '_').replace('/', '_')
+    tmp = re.sub(r'^.*?---', '', basecamptopic).replace(' ', '_').replace('/', '_').replace(':', '_')
 
     if os.path.exists(write_directory + tmp):
         # Don't continue for update as someone else is manually updating it
@@ -249,7 +250,7 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
     asset = sg.find_one('Asset', [['id', 'is', assetId]], ['id', 'project'])
 
     baseCampTopic = re.sub(r'^.*?---', '', baseCampTopic)
-    baseCampTopic = baseCampTopic.replace(' ', '_').replace('/', '_')
+    baseCampTopic = baseCampTopic.replace(' ', '_').replace('/', '_').replace(':', '_')
 
     try:
         basecampJSON, drainProject, writeDirectory, topicID = getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier)
@@ -485,11 +486,11 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                 topic_title = topicName['title']
 
                 # Only pull down the topic that is relevant
-                tmp = topic_title.replace(' ', '_').replace('/', '_')
+                tmp = topic_title.replace(' ', '_').replace('/', '_').replace(':', '_')
                 topicID = topicName['id']
                 if str(topicID) == uniqueIdentifier or (uniqueIdentifier == 'New' and tmp == baseCampTopic):
                     finalTopicID = topicID
-                    basecampName = str(basecampProject['name']).replace(' ', '_').replace('/', '_')
+                    basecampName = str(basecampProject['name']).replace(' ', '_').replace('/', '_').replace(':', '_')
                     message_url = topicName['topicable']['url']
                     m = requests.get(message_url, headers=headers_422, auth=auth_422)
                     messages = m.json()
@@ -499,37 +500,39 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                     comments = messages['comments']
                     topic_directory = ""
                     if len(comments) > 0:
-                        topic_directory = topic_title.replace(' ', '_').replace('/', '_')
+                        topic_directory = topic_title.replace(' ', '_').replace('/', '_').replace(':', '_')
                         topic_path = os.path.join(write_directory, topic_directory)
                         if not os.path.exists(topic_path):
                             os.makedirs(topic_path)
 
                         write_path_topic = os.path.join(topic_path, topic_directory + '.html')
                         with open(write_path_topic, 'wb') as wf:
-                            initialPostData = [str(messages['id']), messages['creator']['name'], messages['content'],
-                                               messages['attachments'], messages['created_at']]
-                            usefulData.append(initialPostData)
-
-                            attachments = messages['attachments']
-                            if len(attachments) > 0:
-                                for attach in attachments:
-                                    write_path_topic = os.path.join(topic_path, attach['name'])
-
-                                    if not os.path.exists(write_path_topic):
-                                        # print('Writing --> ' + write_path_topic)
-                                        ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
-                                        if ff.headers['Content-Type'] == 'application/xml':
-                                            logger.debug("Image file download failed %s" % ff.content)
-                                            raise Exception('An error occurred downloading an image attachment')
-
-                                        with open(write_path_topic, 'wb') as f:
-                                            f.write(ff.content)
-
                             for comment in comments:
 
                                 # Only pull down posts more recent than what is already on shotgun
                                 postID = str(comment['id'])
                                 if postID > latestPostID:
+
+                                    initialPostData = [str(messages['id']), messages['creator']['name'],
+                                                       messages['content'],
+                                                       messages['attachments'], messages['created_at']]
+                                    usefulData.append(initialPostData)
+
+                                    attachments = messages['attachments']
+                                    if len(attachments) > 0:
+                                        for attach in attachments:
+                                            write_path_topic = os.path.join(topic_path, attach['name'])
+
+                                            if not os.path.exists(write_path_topic):
+                                                # print('Writing --> ' + write_path_topic)
+                                                ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
+                                                if ff.headers['Content-Type'] == 'application/xml':
+                                                    logger.debug("Image file download failed %s" % ff.content)
+                                                    raise Exception('An error occurred downloading an image attachment')
+
+                                                with open(write_path_topic, 'wb') as f:
+                                                    f.write(ff.content)
+
                                     postData = [str(comment['id']), comment['creator']['name'], comment['content'],
                                                 comment['attachments'], comment['created_at']]
                                     usefulData.append(postData)
@@ -569,7 +572,7 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
 
 
 def topicAlreadyExists(topic):
-    topic = topic.replace(' ', '_').replace('/', '_')
+    topic = topic.replace(' ', '_').replace('/', '_').replace(':', '_')
     note = sg.find('Note', [['subject', 'is', 'Basecamp Thread for ' + topic]], ['name'])
 
     if len(note) > 0:
