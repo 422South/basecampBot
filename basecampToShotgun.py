@@ -507,31 +507,31 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
 
                         write_path_topic = os.path.join(topic_path, topic_directory + '.html')
                         with open(write_path_topic, 'wb') as wf:
+                            if latestPostID < str(1):
+                                initialPostData = [str(messages['id']), messages['creator']['name'],
+                                                   messages['content'],
+                                                   messages['attachments'], messages['created_at']]
+                                usefulData.append(initialPostData)
+
+                                attachments = messages['attachments']
+                                if len(attachments) > 0:
+                                    for attach in attachments:
+                                        write_path_topic = os.path.join(topic_path, attach['name'])
+
+                                        if not os.path.exists(write_path_topic):
+                                            # print('Writing --> ' + write_path_topic)
+                                            ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
+                                            if ff.headers['Content-Type'] == 'application/xml':
+                                                logger.debug("Image file download failed %s" % ff.content)
+                                                raise Exception('An error occurred downloading an image attachment')
+
+                                            with open(write_path_topic, 'wb') as f:
+                                                f.write(ff.content)
                             for comment in comments:
 
                                 # Only pull down posts more recent than what is already on shotgun
                                 postID = str(comment['id'])
                                 if postID > latestPostID:
-
-                                    initialPostData = [str(messages['id']), messages['creator']['name'],
-                                                       messages['content'],
-                                                       messages['attachments'], messages['created_at']]
-                                    usefulData.append(initialPostData)
-
-                                    attachments = messages['attachments']
-                                    if len(attachments) > 0:
-                                        for attach in attachments:
-                                            write_path_topic = os.path.join(topic_path, attach['name'])
-
-                                            if not os.path.exists(write_path_topic):
-                                                # print('Writing --> ' + write_path_topic)
-                                                ff = requests.get(attach['url'], headers=headers_422, auth=auth_422)
-                                                if ff.headers['Content-Type'] == 'application/xml':
-                                                    logger.debug("Image file download failed %s" % ff.content)
-                                                    raise Exception('An error occurred downloading an image attachment')
-
-                                                with open(write_path_topic, 'wb') as f:
-                                                    f.write(ff.content)
 
                                     postData = [str(comment['id']), comment['creator']['name'], comment['content'],
                                                 comment['attachments'], comment['created_at']]
