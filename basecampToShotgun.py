@@ -293,7 +293,7 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
     baseCampTopic = baseCampTopic.replace(' ', '_').replace('/', '_').replace(':', '_')
 
     try:
-        basecampJSON, drainProject, writeDirectory, topicID = getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier)
+        basecampJSON, drainProject, writeDirectory, topicID, updatedThreadName = getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier)
     except:
         raise Exception('Error downloading files from basecamp')
 
@@ -301,10 +301,10 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
     # theProjectID = 289
 
     # Find all users on the project
-    userList = []
-    project = sg.find("HumanUser", [["projects", "is", {'type': 'Project', "id": theProjectID}]], ["name"])
-    for user in project:
-        userList.append(user)
+    # userList = []
+    # project = sg.find("HumanUser", [["projects", "is", {'type': 'Project', "id": theProjectID}]], ["name"])
+    # for user in project:
+    #     userList.append(user)
 
     # If the basecamp thread doesn't exist create it
     baseCampThread = sg.find_one('Note', [['subject', 'is', 'Basecamp Thread for ' + baseCampTopic],
@@ -332,7 +332,11 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
             latestPostID = i[0]
 
         if i[2] != None:
-            theContents = i[2].replace('<br>', '\n') \
+
+            # Take out the hyperlink arefs. This was just duplicating URLs in the commentChain
+            tmp = re.sub(r'<a href=".*">', '', i[2])
+
+            theContents = tmp.replace('<br>', '\n') \
                 .replace('<p>', '') \
                 .replace('</p>', '') \
                 .replace('<ul>', '') \
@@ -341,17 +345,19 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
                 .replace('</div', '') \
                 .replace('<li>', '') \
                 .replace('</li>', '') \
-                .replace('<a href=', '') \
                 .replace('</a>', '') \
                 .replace('<b>', '') \
                 .replace('</b>', '') \
-                .replace('&lt;', '<') \
-                .replace('&gt;', '>') \
                 .replace('&nbsp;', ' ') \
                 .replace('<u>', '') \
                 .replace('</u>', '') \
                 .replace('<i>', '') \
-                .replace('</i>', '')
+                .replace('</i>', '') \
+                .replace('<strong>', '') \
+                .replace('</strong>', '') \
+                .replace('>', '\n') \
+                .replace('&lt;', '<') \
+                .replace('&gt;', '>')
         else:
             theContents = ""
 
@@ -372,10 +378,12 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
             if os.path.exists(imageLocation):
                 img_id = sg.upload('Note', baseCampThread['id'], imageLocation)
 
-
-    # update the threads post ID
+    # Update the threads post ID and basecamptopic in all instances of it, incase it has been renamed
     postIDData = {
         'sg_latestpostid': str(latestPostID),
+        'subject': 'Basecamp Thread for ' + updatedThreadName,
+        'content': 'Everything from basecamp for ' + updatedThreadName,
+        'sg_basecamptopic': updatedThreadName,
     }
     sg.update('Note', baseCampThread['id'], postIDData)
 
@@ -608,7 +616,7 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                     continue
     tmp = write_directory + topic_directory
 
-    return usefulData, basecampName, tmp, finalTopicID
+    return usefulData, basecampName, tmp, finalTopicID, topic_directory
 
 
 def topicAlreadyExists(topic):
