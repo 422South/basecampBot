@@ -546,9 +546,8 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
                     #     pprint.pprint(mm)
                     # pprint.pprint(messages['comments'])
                     comments = messages['comments']
-                    topic_directory = ""
+                    topic_directory = topic_title.replace(' ', '_').replace('/', '_').replace(':', '_')
                     if len(comments) > 0:
-                        topic_directory = topic_title.replace(' ', '_').replace('/', '_').replace(':', '_')
                         topic_path = os.path.join(write_directory, topic_directory)
                         if not os.path.exists(topic_path):
                             os.makedirs(topic_path)
