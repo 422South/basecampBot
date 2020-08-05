@@ -206,12 +206,14 @@ def updateAllThreads():
             theProjectID = asset['project'].get('id')
 
             track = traceback.format_exc()
+            devProject = sg.find_one("Project", [["name", "is", 'Software-Development']], ['id'])
 
             ticketData = {
-                'project': {'type': 'Project', 'id': theProjectID},
+                'project': {'type': 'Project', 'id': devProject['id']},
                 'title': 'Basecamp Bot Error with ' + basecamptopic,
                 'description': str(track),
                 'addressings_to': [{'type': 'Group', 'id': group['id']}],
+                'sg_ticket_type': 'Bug'
             }
             sg.create('Ticket', ticketData)
 
