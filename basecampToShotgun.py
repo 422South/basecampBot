@@ -184,6 +184,7 @@ def updateAllThreads():
         os.mkdir(write_directory)
 
     notes = sg.find('Note', [['sg_basecamptopic', 'is_not', '']], ['sg_basecamptopic', 'sg_latestpostid', 'note_links', 'sg_basecampidentifier'])
+    track = ""
     for note in notes:
         latestID = note['sg_latestpostid']
         assetID = note['note_links'][0].get("id")
@@ -200,28 +201,26 @@ def updateAllThreads():
             writeDirectory = createNote(latestID, basecamptopic, assetID, uniqueIdentifier)
         except Exception as e:
             logger.debug("Update all thread failed to update thread: " + str(basecamptopic))
-
-            group = sg.find_one("Group", [["code", "is", 'Data/Tech Management']], ["id"])
-            asset = sg.find_one('Asset', [['id', 'is', assetID]], ['id', 'project'])
-            theProjectID = asset['project'].get('id')
-
-            track = traceback.format_exc()
-            devProject = sg.find_one("Project", [["name", "is", 'Software-Development']], ['id'])
-
-            ticketData = {
-                'project': {'type': 'Project', 'id': devProject['id']},
-                'title': 'Basecamp Bot Error with ' + basecamptopic,
-                'description': str(track),
-                'addressings_to': [{'type': 'Group', 'id': group['id']}],
-                'sg_ticket_type': 'Bug'
-            }
-            sg.create('Ticket', ticketData)
-
+            track = track + '\n\n' + basecamptopic + '\n' + traceback.format_exc()
             continue
 
         if os.path.exists(write_directory):
             if os.path.exists(writeDirectory):
                 shutil.rmtree(writeDirectory, ignore_errors=True)
+
+    # Make one email with all the problems at the end instead of 1 email per problem
+    group = sg.find_one("Group", [["code", "is", 'Data/Tech Management']], ["id"])
+    devProject = sg.find_one("Project", [["name", "is", 'Software-Development']], ['id'])
+
+    ticketData = {
+        'project': {'type': 'Project', 'id': devProject['id']},
+        'title': 'Basecamp Bot Errors',
+        'description': str(track),
+        'addressings_to': [{'type': 'Group', 'id': group['id']}],
+        'sg_ticket_type': 'Bug'
+    }
+    sg.create('Ticket', ticketData)
+
     logger.info("%d Threads updated" % len(notes))
     return "<h2><p style='color: grey';>Threads updated</p></h2>"
 
