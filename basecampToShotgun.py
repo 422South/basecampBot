@@ -185,6 +185,7 @@ def updateAllThreads():
 
     notes = sg.find('Note', [['sg_basecamptopic', 'is_not', '']], ['sg_basecamptopic', 'sg_latestpostid', 'note_links', 'sg_basecampidentifier'])
     track = ""
+    createTicket = False
     for note in notes:
         latestID = note['sg_latestpostid']
         assetID = note['note_links'][0].get("id")
@@ -202,6 +203,7 @@ def updateAllThreads():
         except Exception as e:
             logger.debug("Update all thread failed to update thread: " + str(basecamptopic))
             track = track + '\n\n' + basecamptopic + '\n' + traceback.format_exc()
+            createTicket = True
             continue
 
         if os.path.exists(write_directory):
@@ -212,14 +214,15 @@ def updateAllThreads():
     group = sg.find_one("Group", [["code", "is", 'Data/Tech Management']], ["id"])
     devProject = sg.find_one("Project", [["name", "is", 'Software-Development']], ['id'])
 
-    ticketData = {
-        'project': {'type': 'Project', 'id': devProject['id']},
-        'title': 'Basecamp Bot Errors',
-        'description': str(track),
-        'addressings_to': [{'type': 'Group', 'id': group['id']}],
-        'sg_ticket_type': 'Bug'
-    }
-    sg.create('Ticket', ticketData)
+    if createTicket:
+        ticketData = {
+            'project': {'type': 'Project', 'id': devProject['id']},
+            'title': 'Basecamp Bot Errors',
+            'description': str(track),
+            'addressings_to': [{'type': 'Group', 'id': group['id']}],
+            'sg_ticket_type': 'Bug'
+        }
+        sg.create('Ticket', ticketData)
 
     logger.info("%d Threads updated" % len(notes))
     return "<h2><p style='color: grey';>Threads updated</p></h2>"
