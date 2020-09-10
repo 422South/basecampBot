@@ -83,6 +83,49 @@ def checkAuthentication():
         return False
 
 
+def checkAuthCloudPub(stringToVerify):
+
+    realKey = sg.find_one('CustomNonProjectEntity02', [['code', 'is', 'verifyUserKey']], ['sg_key'])['sg_key']
+    realString = sg.find_one('CustomNonProjectEntity02', [['code', 'is', 'verifyUserKey']], ['description'])['description']
+    dataObj = hmac.new(realKey, realString, hashlib.sha1).hexdigest()
+
+    if dataObj == stringToVerify:
+        return True
+    else:
+        return False
+
+
+'''
+    Function for accessing amazon S3 keys used by shotgun when publishing assets to cloud
+'''
+
+
+@app.route("/shotgun/getKeys", methods=['GET', 'POST'])
+def getKeys():
+    logger.info("route : /shotgun/getKeys")
+
+    form = request.form
+    if 'stringToVerify' not in form.keys():
+        abort(404)
+        return ""
+
+    stringToVerify = form.get('stringToVerify')
+
+    authenticated = checkAuthCloudPub(stringToVerify)
+    if not authenticated:
+        abort(404)
+        return ""
+
+    # Get the keys from the text file stored on server
+    keys = {}
+    with open('s3keys.txt', 'r') as f:
+        for line in f:
+            name, value = line.strip().split("=")
+            keys[name] = value
+
+    return keys
+
+
 '''
     Function to return some <default> HTML if the user somehow accesses the local host website
 '''
