@@ -407,8 +407,7 @@ def createNote(latestPostID, baseCampTopic, assetId, uniqueIdentifier):
                 .replace('&gt;', '>')
         else:
             theContents = ""
-
-        botUser = sg.find_one('ClientUser', [['name', 'is', 'Basecamp Bot']], ['name'])
+        botUser = sg.find_one('ApiUser', [['id', 'is', 126]], ['id'])
         replyDateCreation = 'This note was created by ' + i[1] + ' on ' + i[4].replace('T', ' ').replace('.000Z',
                                                                                                          '') + '\n\n'
         reply_data = {
