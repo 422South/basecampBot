@@ -118,7 +118,7 @@ def getKeys():
 
     # Get the keys from the text file stored on server
     keys = {}
-    with open('s3keys.txt', 'r') as f:
+    with open('/var/www/basecamp_bot/shotgunApp/s3keys.txt', 'r') as f:
         for line in f:
             name, value = line.strip().split("=")
             keys[name] = value
