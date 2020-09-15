@@ -109,6 +109,10 @@ def getKeys():
         abort(404)
         return ""
 
+    if 'logInfo' not in form.keys():
+        abort(404)
+        return ""
+
     stringToVerify = form.get('stringToVerify')
 
     authenticated = checkAuthCloudPub(stringToVerify)
@@ -122,6 +126,12 @@ def getKeys():
         for line in f:
             name, value = line.strip().split("=")
             keys[name] = value
+
+    # Log some info
+    infoToLog = str(form.get('logInfo'))
+    with open('/var/log/httpd/cloudPublish.log', 'a') as f:
+        f.write(infoToLog + '\n')
+        f.close()
 
     return keys
 
