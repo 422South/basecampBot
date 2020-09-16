@@ -60,7 +60,7 @@ for pubFile in potentialPubFiles:
     texturesDict = ast.literal_eval(textures)
     for textureInfo in texturesDict:
         linuxPath = os.path.join(filePathBase, textureInfo[0].replace('\\', '/'))
-        print linuxPath
+        # print linuxPath
         try:
             os.makedirs(os.path.dirname(linuxPath))
         except:
