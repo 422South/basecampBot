@@ -204,7 +204,7 @@ def checkProjects():
         auth_422 = ('craig@422south.com', 'Millenium2')
         r = requests.get(url, headers=headers_422, auth=auth_422)
         for basecampProject in r.json():
-            if search('^drain', basecampProject['name'], IGNORECASE):
+            if search('^drain', basecampProject['name'], IGNORECASE) or search('^WDW', basecampProject['name'], IGNORECASE):
                 topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(
                     basecampProject['id']) + '/topics.json'
                 t = requests.get(topic_url, headers=headers_422, auth=auth_422)
@@ -520,7 +520,7 @@ def process_ami():
             auth_422 = ('craig@422south.com', 'Millenium2')
             r = requests.get(url, headers=headers_422, auth=auth_422)
             for basecampProject in r.json():
-                if search('^drain', basecampProject['name'], IGNORECASE):
+                if search('^drain', basecampProject['name'], IGNORECASE) or search('^WDW', basecampProject['name'], IGNORECASE):
                     topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(
                         basecampProject['id']) + '/topics.json'
                     t = requests.get(topic_url, headers=headers_422, auth=auth_422)
@@ -577,7 +577,7 @@ def getBasecampFiles(latestPostID, baseCampTopic, uniqueIdentifier):
     # pprint.pprint(r.json(), indent= 5)
 
     for basecampProject in r.json():
-        if search('^drain', basecampProject['name'], IGNORECASE):
+        if search('^drain', basecampProject['name'], IGNORECASE) or search('^WDW', basecampProject['name'], IGNORECASE):
             # pprint.pprint(basecampProject['name'])
             topic_url = 'https://basecamp.com/2978927/api/v1/projects/' + str(basecampProject['id']) + '/topics.json'
             # print(topic_url)
