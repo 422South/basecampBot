@@ -65,7 +65,7 @@ for pubFile in potentialPubFiles:
             os.makedirs(os.path.dirname(linuxPath))
         except:
             pass
-        pathToTextureCloud = pubFile['sg_cloudpublishfolderpath'] + '/' + os.path.splitext(os.path.basename(textureInfo[1]))[0] + '.zip'
+        pathToTextureCloud = os.path.dirname(pubFile['sg_cloudpublishfolderpath']) + '/' + os.path.splitext(os.path.basename(textureInfo[1]))[0] + '.zip'
         pathToTextureOrion = os.path.join(os.path.dirname(linuxPath), os.path.splitext(os.path.basename(linuxPath))[0] + '.zip')
         response = client.download_file(bucketName, pathToTextureCloud, pathToTextureOrion)
 
