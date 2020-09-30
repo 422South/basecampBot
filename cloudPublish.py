@@ -28,7 +28,7 @@ SECRET_KEY = keys['SECRET_KEY']
 bucketName = '422-south-shotgun'
 client = boto3.client('s3', aws_access_key_id=ACCESS_KEY, aws_secret_access_key=SECRET_KEY)
 
-potentialPubFiles = sg.find('PublishedFile', [['sg_cloudpublishstatus', 'is', 'Cloud']],
+potentialPubFiles = sg.find('PublishedFile', [['sg_cloudpublishstatus', 'is', 'Remote']],
                             ['sg_cloudpublishstatus', 'path_cache', 'id', 'sg_cloudpublishtextures',
                              'sg_cloudpublishfolderpath', 'path_cache_storage'])
 
@@ -76,6 +76,6 @@ for pubFile in potentialPubFiles:
 
     # Update this field to CloudOrion, so that this script doesn't attempt to download that file again
     updatedVerData = {
-        'sg_cloudpublishstatus': 'CloudOrion',
+        'sg_cloudpublishstatus': 'RemoteSynced',
     }
     sg.update('PublishedFile', pubFile['id'], updatedVerData)
