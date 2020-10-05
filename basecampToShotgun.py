@@ -128,8 +128,10 @@ def getKeys():
             keys[name] = value
 
     # Log some info
+    timestamp = str(datetime.datetime.now().strftime('%A %d %b %H:%M:%S %Y'))
     infoToLog = str(form.get('logInfo'))
     with open('/var/log/httpd/cloudPublish.log', 'a') as f:
+        f.write(timestamp + '\n')
         f.write(infoToLog + '\n')
         f.close()
 
