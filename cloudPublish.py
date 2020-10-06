@@ -3,6 +3,7 @@ import ast
 import os
 import shotgun_api3 as sg3
 import zipfile
+import datetime
 
 # This is designed to sit on a Cron job that runs overnight to save bandwidth, potential hours 8pm - 6am
 
@@ -30,7 +31,7 @@ client = boto3.client('s3', aws_access_key_id=ACCESS_KEY, aws_secret_access_key=
 
 potentialPubFiles = sg.find('PublishedFile', [['sg_cloudpublishstatus', 'is', 'Remote']],
                             ['sg_cloudpublishstatus', 'path_cache', 'id', 'sg_cloudpublishtextures',
-                             'sg_cloudpublishfolderpath', 'path_cache_storage'])
+                             'sg_cloudpublishfolderpath', 'path_cache_storage', 'project', 'code'])
 
 for pubFile in potentialPubFiles:
     filePathMount = pubFile['path_cache_storage']['name']
@@ -79,3 +80,11 @@ for pubFile in potentialPubFiles:
         'sg_cloudpublishstatus': 'RemoteSynced',
     }
     sg.update('PublishedFile', pubFile['id'], updatedVerData)
+
+    # Log some info
+    timestamp = str(datetime.datetime.now().strftime('%A %d %b %H:%M:%S %Y'))
+    infoToLog = 'Cron downloaded ' + str(pubFile['code']) + ' from ' + str(pubFile['project']['name'])
+    with open('/var/log/httpd/cloudPublish.log', 'a') as f:
+        f.write(timestamp + '\n')
+        f.write(infoToLog + '\n')
+        f.close()
