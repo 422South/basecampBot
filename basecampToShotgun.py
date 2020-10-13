@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import time
 import traceback
+import six
 
 app = Flask(__name__)
 
@@ -129,7 +130,7 @@ def getKeys():
 
     # Log some info
     timestamp = str(datetime.datetime.now().strftime('%A %d %b %H:%M:%S %Y'))
-    infoToLog = str(form.get('logInfo'))
+    infoToLog = six.ensure_str(form.get('logInfo'))
     with open('/var/log/httpd/cloudPublish.log', 'a') as f:
         f.write(timestamp + '\n')
         f.write(infoToLog + '\n')
