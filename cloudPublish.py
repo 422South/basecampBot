@@ -58,22 +58,23 @@ for pubFile in potentialPubFiles:
     os.remove(fileToUnzip)
 
     # Download all the textures as well
-    texturesDict = ast.literal_eval(textures)
-    for textureInfo in texturesDict:
-        linuxPath = os.path.join(filePathBase, textureInfo[0].replace('\\', '/'))
-        # print linuxPath
-        try:
-            os.makedirs(os.path.dirname(linuxPath))
-        except:
-            pass
-        pathToTextureCloud = os.path.dirname(pubFile['sg_cloudpublishfolderpath']) + '/' + os.path.splitext(os.path.basename(textureInfo[1]))[0] + '.zip'
-        pathToTextureOrion = os.path.join(os.path.dirname(linuxPath), os.path.splitext(os.path.basename(linuxPath))[0] + '.zip')
-        response = client.download_file(bucketName, pathToTextureCloud, pathToTextureOrion)
+    if textures is not None:
+        texturesDict = ast.literal_eval(textures)
+        for textureInfo in texturesDict:
+            linuxPath = os.path.join(filePathBase, textureInfo[0].replace('\\', '/'))
+            # print linuxPath
+            try:
+                os.makedirs(os.path.dirname(linuxPath))
+            except:
+                pass
+            pathToTextureCloud = os.path.dirname(pubFile['sg_cloudpublishfolderpath']) + '/' + os.path.splitext(os.path.basename(textureInfo[1]))[0] + '.zip'
+            pathToTextureOrion = os.path.join(os.path.dirname(linuxPath), os.path.splitext(os.path.basename(linuxPath))[0] + '.zip')
+            response = client.download_file(bucketName, pathToTextureCloud, pathToTextureOrion)
 
-        textureToUnzip = os.path.join(os.path.dirname(linuxPath), os.path.splitext(os.path.basename(linuxPath))[0] + '.zip')
-        with zipfile.ZipFile(textureToUnzip, 'r') as zip_ref:
-            zip_ref.extractall(os.path.dirname(textureToUnzip))
-        os.remove(textureToUnzip)
+            textureToUnzip = os.path.join(os.path.dirname(linuxPath), os.path.splitext(os.path.basename(linuxPath))[0] + '.zip')
+            with zipfile.ZipFile(textureToUnzip, 'r') as zip_ref:
+                zip_ref.extractall(os.path.dirname(textureToUnzip))
+            os.remove(textureToUnzip)
 
     # Update this field to CloudOrion, so that this script doesn't attempt to download that file again
     updatedVerData = {
