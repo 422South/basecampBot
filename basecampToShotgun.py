@@ -13,6 +13,7 @@ import hmac
 import time
 import traceback
 import six
+import boto3
 
 app = Flask(__name__)
 
@@ -137,6 +138,56 @@ def getKeys():
         f.close()
 
     return keys
+
+
+'''
+    Function for removing entities form cloud storage
+'''
+
+
+@app.route("/shotgun/removeFromCloud", methods=['GET', 'POST'])
+def deleteFromCloud():
+    logger.info("route : /shotgun/removeFromCloud")
+
+    authenticated = checkAuthentication()
+    if not authenticated:
+        abort(404)
+        return ""
+
+    fileToDelete = sg.find_one("PublishedFile", [['id', 'is', int(request.form.get('ids'))]],
+                                            ['sg_cloudpublishstatus', 'path_cache', 'id',
+                                             'sg_cloudpublishtextures',
+                                             'sg_cloudpublishfolderpath', 'path_cache_storage'])
+
+    if fileToDelete['sg_cloudpublishstatus'] != 'RemoteSynced':
+        # Don't delete stuff that isn't synced on Orion
+        return "Can't delete this file as it isn't on Orion, try again tomorrow"
+
+    amazonPath = fileToDelete['sg_cloudpublishfolderpath'] + '/' + os.path.splitext(os.path.basename(fileToDelete['path_cache']))[0] + '.zip'
+
+    # Get S3 Access Keys
+    keys = {}
+    with open('/var/www/basecamp_bot/shotgunApp/s3keys.txt', 'r') as f:
+        for line in f:
+            name, value = line.strip().split("=")
+            keys[name] = value
+
+    ACCESS_KEY = keys['ACCESS_KEY']
+    SECRET_KEY = keys['SECRET_KEY']
+    bucketName = '422-south-shotgun'
+    client = boto3.client('s3', aws_access_key_id=ACCESS_KEY, aws_secret_access_key=SECRET_KEY)
+
+    client.delete_object(Bucket=bucketName, Key=amazonPath)
+
+    # Update the cloud database entries to be nothing as we're no longer on the cloud
+    updatedVerData = {
+        'sg_cloudpublishstatus': '',
+        'sg_cloudpublishtextures': '',
+        'sg_cloudpublishfolderpath': '',
+    }
+    sg.update('PublishedFile', fileToDelete['id'], updatedVerData)
+
+    return "Done"
 
 
 '''
